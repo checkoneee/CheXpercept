@@ -1,6 +1,6 @@
 # CheXpercept: A Benchmark for Evaluating Expert-Level Lesion Perception in Chest X-rays
 
-**NeurIPS 2026 Datasets & Benchmarks Track**
+*Under review*
 
 Anonymous Authors
 
@@ -274,21 +274,6 @@ We evaluate 14 VLMs: 4 proprietary and 10 open-source (5 general-domain, 5 medic
 | Proprietary | Gemini-3.1-Flash | via `--provider gemini` |
 | Proprietary | GPT-5.4 | via `--provider openai` |
 | Proprietary | GPT-5.4-nano | via `--provider openai` |
-
----
-
-## Citation
-
-If you use CheXpercept in your research, please cite:
-
-```bibtex
-@inproceedings{anonymous2026chexpercept,
-  title     = {CheXpercept: A Benchmark for Evaluating Expert-Level Lesion Perception in Chest X-rays},
-  author    = {Anonymous Authors},
-  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
-  year      = {2026}
-}
-```
 
 ---
 
