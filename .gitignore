@@ -1,0 +1,31 @@
+# Python
+*.pyc
+__pycache__/
+
+# Logs
+*.log
+
+# Secrets / user-specific config
+api_info/api_keys.yaml
+cfg/config.yaml
+cfg/_config_sample_test_rendered.yaml
+
+# Third-party repos cloned by setup.sh
+src/00_source_data_curation/LISA/
+src/01_mask_deformation/sam3/
+src/01_mask_deformation/CheXmask-U/
+
+# Internal helpers / unreleased scripts
+src/02_qa_generation/_internal/
+src/03_eval_vlm_on_chexpercept/_internal/
+src/04_analyze_eval_result/_internal/
+
+# Run artifacts
+src/00_source_data_curation/outputs/
+src/01_mask_deformation/outputs/
+src/02_qa_generation/outputs/
+src/03_eval_vlm_on_chexpercept/outputs/
+src/04_analyze_eval_result/all_models_oracle_*/
+
+# Downloaded benchmark
+data/chexpercept/

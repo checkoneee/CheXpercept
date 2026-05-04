@@ -1,0 +1,10 @@
+hf_token: YOUR_HUGGINGFACE_TOKEN
+
+gemini:
+  project: YOUR_GCP_PROJECT_ID
+  credentials_path: /path/to/your/gcp_credentials.json
+
+azure:
+  api_key: YOUR_AZURE_API_KEY
+  endpoint: https://YOUR_RESOURCE.cognitiveservices.azure.com/
+  api_version: 2024-12-01-preview

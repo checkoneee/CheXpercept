@@ -1,0 +1,19 @@
+# Config for sample_test.sh (1 positive + 1 negative case end-to-end smoke test).
+# All paths point to data/sample_test/ so no external data is required.
+# {ROOT} is replaced at runtime by sample_test.sh with the absolute project root.
+path:
+  mimic_cxr_path: '{ROOT}/data/sample_test/mimic_cxr'
+  mimic_ils_path: '{ROOT}/data/sample_test/mimic_ils/mimic_ils_instruction_answer.json'
+  mimic_ils_seg_mask_path: '{ROOT}/data/sample_test/mimic_ils/lesion_mask'
+  mimic_report_path: '{ROOT}/data/sample_test/mimic_reports'
+  chexmask_path: '{ROOT}/data/sample_test/prebuilt/chexmasku_pred'
+  cxas_mask_path: '{ROOT}/data/sample_test/prebuilt/cxas_pred'
+
+qa_generation:
+  no_deformation_ratio:
+    default: 0.0          # force deformation so the positive case follows the revision_required path
+    cardiomegaly: 0.0
+
+mask_deformation:
+  zone_mask_source: chex_vertical_thirds
+  save_visualization: false

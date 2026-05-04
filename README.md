@@ -57,18 +57,17 @@ Cardiomegaly is a structural exception: Stage 4 attributes (lung-based) are not 
 
 ```
 CXReasoning/
-├── cfg/                          # Configuration files
-│   └── config_nas.yaml           # Main config (paths, hyperparameters)
+├── cfg/                            # Configuration template
+├── api_info/                       # API keys template
+├── envs/                           # Conda environment files
 ├── src/
-│   ├── 00_optimal_mask_generation/  # Stage 00: Sample MIMIC-ILS; generate optimal masks via ROSALIA
-│   ├── 01_mask_deformation/         # Stage 01: Deform optimal masks (SAM3-based)
-│   ├── 02_qa_generation/            # Stage 02: Generate and sample QA pairs
-│   ├── 03_eval_vlm_on_chexpercept/  # Stage 03: Evaluate VLMs on CheXpercept
-│   └── 04_analyze_eval_result/      # Stage 04: Analyze and visualize results
-├── utils/
-│   ├── config.py                 # Config loader
-│   └── llm.py                    # LLM utilities
-└── data/                         # Auxiliary metadata files
+│   ├── 00_source_data_curation/    # Stage 00: Sample MIMIC-ILS; generate optimal masks via ROSALIA
+│   ├── 01_mask_deformation/        # Stage 01: Anatomy masks + SAM3-based mask deformation
+│   ├── 02_qa_generation/           # Stage 02: Generate and sample QA pairs
+│   ├── 03_eval_vlm_on_chexpercept/ # Stage 03: Evaluate VLMs on CheXpercept
+│   └── 04_analyze_eval_result/     # Stage 04: Analyze and visualize results
+├── utils/                          # Shared utilities (config loader, LLM helpers)
+└── data/                           # Auxiliary metadata files
 ```
 
 ### Data Flow
@@ -101,7 +100,7 @@ CheXpercept is built on top of [MIMIC-CXR-JPG](https://physionet.org/content/mim
 
 1. Request access to [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/) on PhysioNet.
 2. Request access to [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/) on PhysioNet.
-3. Update the paths in `cfg/config_nas.yaml` to point to your local copies.
+3. Update the paths in `cfg/config.yaml` to point to your local copies.
 
 ---
 
@@ -109,31 +108,36 @@ CheXpercept is built on top of [MIMIC-CXR-JPG](https://physionet.org/content/mim
 
 ### Environments
 
-Three separate conda environments are used across the pipeline:
+Separate conda environments are used across the pipeline:
 
 | Environment | Stages | Purpose |
 |-------------|--------|---------|
-| `rosalia` | 00 | ROSALIA inference for optimal mask generation |
-| `cxreasoning` | 01 | Mask deformation |
-| `chexpercept` | 02, 04 | QA generation and result analysis |
-| `vllm` | 03 | VLM inference with vLLM |
+| `rosalia` | 00, 01 | Optimal mask generation and mask deformation |
+| `chexpercept` | 02, 03, 04 | QA generation, VLM evaluation (vLLM + APIs), result analysis |
+| `hulumed` | 03 (Hulu-Med only) | Dedicated env for `hulu-med` (incompatible deps with `chexpercept`) |
 
 ```bash
 conda env create -f envs/rosalia.yml
 conda env create -f envs/chexpercept.yml
-# ... (see envs/ for all environment files)
+conda env create -f envs/hulumed.yml      # only if evaluating hulu-med
 ```
 
-### LISA Setup (required for Stage 00)
+### Third-Party Dependencies (`setup.sh`)
 
-Stage 00 uses [LISA](https://github.com/dvlab-research/LISA) as the backbone for ROSALIA. Clone it into the Stage 00 directory:
+Three external GitHub repos are required and not bundled. `setup.sh` clones whatever is missing:
 
 ```bash
-cd src/00_source_data_curation
-git clone https://github.com/dvlab-research/LISA.git
+bash setup.sh                    # clones all three
+bash setup.sh --skip-lisa --skip-chexmask-u   # only need sample_test.sh
 ```
 
-> `use_rosalia.py` (our custom inference wrapper) is already included in the repo and does not need to be copied manually.
+| Repo | Path | Used by |
+|------|------|---------|
+| [LISA](https://github.com/JIA-Lab-research/LISA) | `src/00_source_data_curation/LISA/` | Stage 00 (ROSALIA inference) |
+| [SAM3](https://github.com/facebookresearch/sam3) | `src/01_mask_deformation/sam3/` | Stage 01 (mask deformation) |
+| [CheXmask-U](https://github.com/mcosarinsky/CheXmask-U) | `src/01_mask_deformation/CheXmask-U/` | Stage 01 (anatomy masks) |
+
+`sample_test.sh` skips the ROSALIA and anatomy-mask steps, so only SAM3 is strictly required for the smoke test (`bash setup.sh --skip-lisa --skip-chexmask-u` is enough).
 
 ### API Keys
 
@@ -153,40 +157,111 @@ cp cfg/config_example.yaml cfg/config.yaml
 # Edit cfg/config.yaml with your dataset paths
 ```
 
+### Troubleshooting
+
+**`ImportError: libcusparse.so.12: undefined symbol: __nvJitLinkGetErrorLogSize_12_9`**
+
+This appears at `import torch` when the `nvidia-cusparse-cu12` and `nvidia-nvjitlink-cu12`
+versions installed by pip into a conda env disagree on the CUDA minor version.
+Prepend the env's bundled `nvjitlink` library to `LD_LIBRARY_PATH` so the loader picks
+the matching one before launching any script:
+
+```bash
+# Run after `conda activate <env>` (works for any env using torch + CUDA 12.x wheels).
+export LD_LIBRARY_PATH=$(python -c "import nvidia.nvjitlink as m; print(list(m.__path__)[0])")/lib:$LD_LIBRARY_PATH
+```
+
+You may want to add the line to your shell profile or to a small wrapper script that
+activates the env before running Stage 03 (or any other torch-using stage).
+
+---
+
+## Quick Start
+
+Two top-level shell scripts wrap the whole pipeline. Use these for the common cases; drop down to the per-stage commands in [Usage](#usage) only when you need to customize.
+
+### `sample_test.sh` — end-to-end smoke test
+
+Runs **Stages 00 → 04** on a single positive + single negative case using the bundled fixtures under `data/sample_test/`, so no MIMIC access is required. Use it to verify your environment before running anything serious.
+
+```bash
+bash sample_test.sh                            # default: 1 GPU (CUDA_VISIBLE_DEVICES=0)
+CUDA_VISIBLE_DEVICES=0,1,2,3 bash sample_test.sh
+```
+
+What it does:
+
+1. Activates `rosalia`, runs Stage 00 (lightweight sub-steps) and Stage 01 (mask deformation, exercises SAM3).
+2. Switches to `chexpercept`, runs Stage 02 (QA generation), Stage 03 (evaluates `medgemma1.5`), Stage 04 (analysis).
+3. Skips two GPU-heavy steps (`01_generate_rosalia_pred.py` and `00_generate_anatomy_mask.py`) and pre-stages their outputs from fixtures.
+4. Auto-fills the `good?` annotation column with `y`. Production runs must use real annotations.
+
+Total time: ~3–4 minutes.
+
+Prereqs: `rosalia` and `chexpercept` envs created from `envs/*.yml`, `api_info/api_keys.yaml` configured with at least the HF token.
+
+### `eval_chexpercept.sh` — full benchmark evaluation
+
+Runs **Stage 03 + Stage 04** on the downloaded CheXpercept benchmark. All arguments are forwarded to `00_eval.py`, then the per-model summary is aggregated.
+
+```bash
+# Place the downloaded benchmark at data/chexpercept/{chexpercept.json, chexpercept/}.
+
+bash eval_chexpercept.sh --provider opensource --model medgemma1.5
+bash eval_chexpercept.sh --provider opensource --model qwen3.6-27b --no-thinking
+bash eval_chexpercept.sh --provider gemini    --model gemini-3.1-pro
+bash eval_chexpercept.sh --model hulu-med                                # auto-switches to hulumed env
+
+CUDA_VISIBLE_DEVICES=0,1,2,3 bash eval_chexpercept.sh --model qwen3.6-27b
+ENV=my-chexpercept-env       bash eval_chexpercept.sh --model medgemma1.5  # custom env name
+```
+
+Defaults: `CUDA_VISIBLE_DEVICES=0`, `ENV=chexpercept` (auto-switches to `hulumed` for `--model hulu-med`).
+
+Larger models need more GPUs — set `CUDA_VISIBLE_DEVICES` accordingly.
+
 ---
 
 ## Usage
 
 ### Stage 00: Source Data Curation
 
-Samples cases from MIMIC-ILS and generates candidate lesion masks using ROSALIA.
+Samples cases from MIMIC-ILS and generates candidate lesion masks using ROSALIA. Run all commands from the project root.
 
 ```bash
-cd src/00_source_data_curation
+conda activate rosalia
 
 # 1. Sample positive and negative cases from MIMIC-ILS
-conda activate chexpercept
-python 00_sample_mimic_ils_case.py --config cfg/config.yaml
+python src/00_source_data_curation/00_sample_mimic_ils_case.py --config cfg/config.yaml
 
-# 2. Generate ROSALIA predictions (supports multi-GPU via --part)
-conda activate rosalia
-python 01_generate_rosalia_pred.py --config cfg/config.yaml --part 0 --total-parts 4
+# 2. Generate ROSALIA predictions (multi-GPU via --part)
+python src/00_source_data_curation/01_generate_rosalia_pred.py --config cfg/config.yaml --part 0 --total-parts 4
 # Run with --part 1, 2, 3 on separate GPUs in parallel
 
-# 3. Merge part outputs and prepare positive annotation sheet
-conda activate chexpercept
-python 02_prepare_positive_annotation.py
+# 3. Merge part outputs and build the positive annotation sheet
+python src/00_source_data_curation/02_prepare_positive_annotation.py --total-parts 4
+
+# 4. Build the negative annotation sheet
+python src/00_source_data_curation/03_prepare_negative_annotation.py --config cfg/config.yaml
+
+# 5. Distribute the sheets and images across annotators
+python src/00_source_data_curation/04_distribute_labeling.py
 ```
+
+After annotators mark the `good?` column in the labeling sheets, proceed to Stage 01.
 
 ### Stage 01: Mask Deformation
 
-Generates suboptimal masks by deforming optimal masks using SAM3.
+Generates lung/heart anatomy masks (CheXmask-U + CXAS), then deforms optimal masks using SAM3 to produce suboptimal candidates.
 
 ```bash
-conda activate cxreasoning
-cd src/01_mask_deformation
+conda activate rosalia
 
-python 01_deform_mask.py --config cfg/config.yaml
+# 1. Generate anatomy masks for all annotated CXRs
+python src/01_mask_deformation/00_generate_anatomy_mask.py --config cfg/config.yaml
+
+# 2. Deform optimal masks (uses the annotated `good?` rows from Stage 00)
+python src/01_mask_deformation/01_deform_mask.py --config cfg/config.yaml --num-workers 8
 ```
 
 ### Stage 02: QA Generation
@@ -204,22 +279,20 @@ python generate_final_chexpercept.py --config cfg/config.yaml
 
 ### Stage 03: VLM Evaluation
 
-Evaluates a VLM on the CheXpercept benchmark. Open-source models use vLLM; proprietary models use their respective APIs.
+Evaluates a VLM on the CheXpercept benchmark. Open-source models use vLLM; proprietary models use their respective APIs. Use `chexpercept` for all models except `hulu-med`, which requires the dedicated `hulumed` env.
 
 ```bash
-conda activate vllm
+conda activate chexpercept     # use `hulumed` only when --model hulu-med
 cd src/03_eval_vlm_on_chexpercept
 
 # Open-source model (vLLM)
-python eval.py \
-    --config cfg/config.yaml \
+python 00_eval.py \
     --provider opensource \
     --model qwen3.6-27b \
     --oracle_setting none
 
 # Proprietary model (e.g., Gemini)
-python eval.py \
-    --config cfg/config.yaml \
+python 00_eval.py \
     --provider gemini \
     --model gemini-3.1-pro \
     --oracle_setting implicit

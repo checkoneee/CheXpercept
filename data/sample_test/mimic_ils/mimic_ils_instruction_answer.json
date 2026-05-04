@@ -1,0 +1,154 @@
+{
+  "train": {
+    "s58956720": {
+      "subject_id": "p10508385",
+      "dicom_id": "1eec54ad-adf25374-4687fbfc-8ceded62-45be37c4",
+      "image_path": "p10/p10508385/s58956720/1eec54ad-adf25374-4687fbfc-8ceded62-45be37c4.jpg",
+      "section_name": "findings",
+      "section_content": "(1) PA and lateral chest radiographs again demonstrate moderate cardiomegaly but no focal consolidation, pleural effusion, or pneumothorax. (2) The cardiac, hilar, and mediastinal contours are normal.",
+      "instruction_answer_pairs": {
+        "positive_pairs": [
+          {
+            "pair_id": "s58956720_positive_0",
+            "instruction": "Segment the cardiomegaly.",
+            "answer": "[SEG]",
+            "type": "global",
+            "target": "cardiomegaly",
+            "location": [
+              "heart"
+            ],
+            "sent_idx": "1",
+            "seg": true,
+            "seg_mask_path": "s58956720/s58956720_cardiomegaly_0.png"
+          }
+        ],
+        "negative_pairs": [
+          {
+            "pair_id": "s58956720_negative_0",
+            "instruction": "Segment the consolidation in the right lung and left lung.",
+            "answer": "[SEG] There is no consolidation in the right lung and left lung.",
+            "type": "basic",
+            "target": "consolidation",
+            "location": [
+              "right lung",
+              "left lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s58956720_negative_1",
+            "instruction": "Segment the effusion in the right apical zone lung.",
+            "answer": "[SEG] There is no effusion in the right apical zone lung.",
+            "type": "basic",
+            "target": "effusion",
+            "location": [
+              "right apical zone lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s58956720_negative_2",
+            "instruction": "Segment the edema in the right upper zone lung.",
+            "answer": "[SEG] There is no edema in the right upper zone lung.",
+            "type": "basic",
+            "target": "edema",
+            "location": [
+              "right upper zone lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s58956720_negative_3",
+            "instruction": "Segment the opacity in the right apical zone lung and predict its type.",
+            "answer": "[SEG] There is no opacity in the right apical zone lung.",
+            "type": "lesion_inference",
+            "target": "opacity",
+            "location": [
+              "right apical zone lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s58956720_negative_4",
+            "instruction": "Segment the pneumonia in the right lung.",
+            "answer": "[SEG] There is no pneumonia in the right lung.",
+            "type": "basic",
+            "target": "pneumonia",
+            "location": [
+              "right lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s58956720_negative_5",
+            "instruction": "Segment the atelectasis in the right lung and left lung.",
+            "answer": "[SEG] There is no atelectasis in the right lung and left lung.",
+            "type": "basic",
+            "target": "atelectasis",
+            "location": [
+              "right lung",
+              "left lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          }
+        ]
+      }
+    },
+    "s52477504": {
+      "subject_id": "p10012261",
+      "dicom_id": "3ce0b228-85b2df0e-4c27c8b2-d5450336-0c09e9cc",
+      "image_path": "p10/p10012261/s52477504/3ce0b228-85b2df0e-4c27c8b2-d5450336-0c09e9cc.jpg",
+      "section_name": "findings",
+      "section_content": "(1) The patient is rotated. (2) The tip of the Dobhoff tube projects over the expected region of the stomach, slightly advanced compared to the prior exam. (3) Focal opacity with air bronchograms in the left lower lung has increased since ___ but is overall similar to ___, suggesting aspiration. (4) The lungs remain hyperinflated. (5) The right lung is clear. (6) The linear lucencies projecting over the left lateral hemithorax appears to be a skin fold. (7) No pleural effusion, pneumothorax, or edema. (8) The heart is normal in size. (9) Mediastinal contours are unchanged. (10) Slight elevation of the left hemidiaphragm may reflect a combination of atelectasis and gaseous distension of bowel in the left upper quadrant, unchanged. (11) Anterior cervical fixation hardware is unchanged.",
+      "instruction_answer_pairs": {
+        "positive_pairs": [],
+        "negative_pairs": [
+          {
+            "pair_id": "s52477504_negative_0",
+            "instruction": "Segment the effusion in the right lung.",
+            "answer": "[SEG] There is no effusion in the right lung.",
+            "type": "basic",
+            "target": "effusion",
+            "location": [
+              "right lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s52477504_negative_1",
+            "instruction": "Segment the edema in the left mid zone lung.",
+            "answer": "[SEG] There is no edema in the left mid zone lung.",
+            "type": "basic",
+            "target": "edema",
+            "location": [
+              "left mid zone lung"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          },
+          {
+            "pair_id": "s52477504_negative_2",
+            "instruction": "Segment the cardiomegaly.",
+            "answer": "[SEG] There is no cardiomegaly.",
+            "type": "global",
+            "target": "cardiomegaly",
+            "location": [
+              "heart"
+            ],
+            "seg": false,
+            "seg_mask_path": null
+          }
+        ]
+      }
+    }
+  },
+  "val": {},
+  "test": {}
+}
