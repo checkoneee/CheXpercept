@@ -94,19 +94,35 @@ Stage 04: evaluation outputs → per-stage accuracy tables and visualizations
 
 ## Dataset
 
-The CheXpercept benchmark dataset is available at: **(link to be added upon publication)**
+> **Distribution during peer review.** The CheXpercept benchmark is being released only as a private link on the OpenReview submission page (see the paper's supplementary material). It is **not** linked from this GitHub repository, and **must not be redistributed** outside of the review context. After publication it will be hosted on PhysioNet with the standard credentialing flow described below.
 
-The dataset requires access to the underlying CXR images from MIMIC-CXR. See [Data Requirements](#data-requirements) below.
+Because CheXpercept is derived from MIMIC-CXR, it inherits PhysioNet's restricted-access requirements. **By using these files you commit to:**
+
+- Not redistributing them, in whole or in part, to anyone outside your immediate research group.
+- Not posting them publicly (cloud buckets, code-hosting forks, paper supplementary material, etc.).
+- Deleting your local copy if you cease to be an authorized user.
+
+We strongly recommend completing the standard PhysioNet credentialing **before** downloading the review copy, even though we cannot enforce it during review. Specifically:
+
+1. Become a [credentialed PhysioNet user](https://physionet.org/settings/credentialing/).
+2. Complete the required **CITI "Data or Specimens Only Research"** training and upload the certificate to PhysioNet.
+3. Sign the MIMIC-CXR-JPG and MIMIC-ILS data-use agreements:
+   - [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/)
+   - [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/)
+
+The provisional review-time release is a concession to the venue's reproducibility requirements; the credentialed PhysioNet release is the long-term distribution channel.
 
 ---
 
 ## Data Requirements
 
-CheXpercept is built on top of [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/) and [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/). Both datasets require credentialed access on PhysioNet.
+To run the **full pipeline** (Stages 00 → 04 from raw MIMIC), you also need local copies of the upstream datasets, both behind the same PhysioNet credentialing flow above:
 
-1. Request access to [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/) on PhysioNet.
-2. Request access to [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/) on PhysioNet.
+1. Download [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/) (CXR images + reports + metadata).
+2. Download [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/) (lesion segmentation masks + instructions).
 3. Update the paths in `cfg/config.yaml` to point to your local copies.
+
+To run **only the smoke test** (`sample_test.sh`) or **only Stage 03 + 04** (`eval_chexpercept.sh` against the released benchmark), the upstream MIMIC datasets are **not required** — the benchmark bundle includes the CXR images you need.
 
 ---
 
