@@ -1,5 +1,10 @@
 # CheXpercept: A Benchmark for Evaluating Expert-Level Lesion Perception in Chest X-rays
 
+> [!IMPORTANT]
+> **Read the [Dataset](#dataset) section before downloading or using anything.**
+> CheXpercept is derived from MIMIC-CXR-JPG and inherits PhysioNet credentialing requirements.
+> The review-time release is private to OpenReview reviewers — **do not redistribute, mirror, or post publicly**.
+
 *Under review*
 
 Anonymous Authors
