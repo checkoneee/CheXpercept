@@ -96,7 +96,7 @@ Stage 04: evaluation outputs → per-stage accuracy tables and visualizations
 
 > **Distribution during peer review.** The CheXpercept benchmark is being released only as a private link on the OpenReview submission page (see the paper's supplementary material). It is **not** linked from this GitHub repository, and **must not be redistributed** outside of the review context. After publication it will be hosted on PhysioNet with the standard credentialing flow described below.
 
-Because CheXpercept is derived from MIMIC-CXR, it inherits PhysioNet's restricted-access requirements. **By using these files you commit to:**
+Because CheXpercept is derived from MIMIC-CXR-JPG, it inherits PhysioNet's restricted-access requirements. **By using these files you commit to:**
 
 - Not redistributing them, in whole or in part, to anyone outside your immediate research group.
 - Not posting them publicly (cloud buckets, code-hosting forks, paper supplementary material, etc.).
@@ -107,7 +107,7 @@ We strongly recommend completing the standard PhysioNet credentialing **before**
 1. Become a [credentialed PhysioNet user](https://physionet.org/settings/credentialing/).
 2. Complete the required **CITI "Data or Specimens Only Research"** training and upload the certificate to PhysioNet.
 3. Sign the MIMIC-CXR-JPG and MIMIC-ILS data-use agreements:
-   - [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/)
+   - [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/2.0.0/)
    - [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/)
 
 The provisional review-time release is a concession to the venue's reproducibility requirements; the credentialed PhysioNet release is the long-term distribution channel.
@@ -118,7 +118,7 @@ The provisional review-time release is a concession to the venue's reproducibili
 
 To run the **full pipeline** (Stages 00 → 04 from raw MIMIC), you also need local copies of the upstream datasets, both behind the same PhysioNet credentialing flow above:
 
-1. Download [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/) (CXR images + reports + metadata).
+1. Download [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/2.0.0/) (CXR images + reports + metadata).
 2. Download [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/) (lesion segmentation masks + instructions).
 3. Update the paths in `cfg/config.yaml` to point to your local copies.
 
@@ -383,11 +383,3 @@ We evaluate 14 VLMs: 4 proprietary and 10 open-source (5 general-domain, 5 medic
 | Proprietary | Gemini-3.1-Flash | via `--provider gemini` |
 | Proprietary | GPT-5.4 | via `--provider openai` |
 | Proprietary | GPT-5.4-nano | via `--provider openai` |
-
----
-
-## License
-
-This repository is released under the [MIT License](LICENSE).
-
-The CheXpercept dataset is derived from [MIMIC-CXR-JPG](https://physionet.org/content/mimic-cxr-jpg/) and [MIMIC-ILS](https://physionet.org/content/mimic-cxr-ext-ils/), which are subject to their respective PhysioNet Data Use Agreements. Users must independently obtain access to the source data through PhysioNet.
