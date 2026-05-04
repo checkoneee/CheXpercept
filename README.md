@@ -56,18 +56,24 @@ Cardiomegaly is a structural exception: Stage 4 attributes (lung-based) are not 
 ## Repository Structure
 
 ```
-CXReasoning/
-├── cfg/                            # Configuration template
-├── api_info/                       # API keys template
+CheXpercept/
+├── setup.sh                        # Clone third-party deps (LISA, SAM3, CheXmask-U)
+├── sample_test.sh                  # End-to-end smoke test (Stages 00 → 04 on bundled fixtures)
+├── eval_chexpercept.sh             # Stage 03 + 04 on the downloaded benchmark
+├── cfg/                            # config_example.yaml, config_sample_test.yaml
+├── api_info/                       # api_keys_example.yaml
 ├── envs/                           # Conda environment files
+├── data/
+│   ├── sample_test/                # Bundled fixtures used by sample_test.sh
+│   └── chexpercept/                # (download here) chexpercept.json + chexpercept/ image folders
 ├── src/
 │   ├── 00_source_data_curation/    # Stage 00: Sample MIMIC-ILS; generate optimal masks via ROSALIA
 │   ├── 01_mask_deformation/        # Stage 01: Anatomy masks + SAM3-based mask deformation
-│   ├── 02_qa_generation/           # Stage 02: Generate and sample QA pairs
+│   ├── 02_qa_generation/           # Stage 02: Generate QA pairs and CheXpercept benchmark export
 │   ├── 03_eval_vlm_on_chexpercept/ # Stage 03: Evaluate VLMs on CheXpercept
 │   └── 04_analyze_eval_result/     # Stage 04: Analyze and visualize results
-├── utils/                          # Shared utilities (config loader, LLM helpers)
-└── data/                           # Auxiliary metadata files
+├── scripts/                        # Helper scripts used by sample_test.sh
+└── utils/                          # Shared utilities (config loader, LLM helpers)
 ```
 
 ### Data Flow
@@ -127,8 +133,8 @@ conda env create -f envs/hulumed.yml      # only if evaluating hulu-med
 Three external GitHub repos are required and not bundled. `setup.sh` clones whatever is missing:
 
 ```bash
-bash setup.sh                    # clones all three
-bash setup.sh --skip-lisa --skip-chexmask-u   # only need sample_test.sh
+bash setup.sh                                  # full pipeline (clones all three)
+bash setup.sh --skip-lisa --skip-chexmask-u    # smoke test only (clones SAM3 only)
 ```
 
 | Repo | Path | Used by |
@@ -137,7 +143,7 @@ bash setup.sh --skip-lisa --skip-chexmask-u   # only need sample_test.sh
 | [SAM3](https://github.com/facebookresearch/sam3) | `src/01_mask_deformation/sam3/` | Stage 01 (mask deformation) |
 | [CheXmask-U](https://github.com/mcosarinsky/CheXmask-U) | `src/01_mask_deformation/CheXmask-U/` | Stage 01 (anatomy masks) |
 
-`sample_test.sh` skips the ROSALIA and anatomy-mask steps, so only SAM3 is strictly required for the smoke test (`bash setup.sh --skip-lisa --skip-chexmask-u` is enough).
+`sample_test.sh` skips the ROSALIA and anatomy-mask inference steps (bundled fixtures stand in for them), so only SAM3 is strictly required for the smoke test.
 
 ### API Keys
 
@@ -266,15 +272,23 @@ python src/01_mask_deformation/01_deform_mask.py --config cfg/config.yaml --num-
 
 ### Stage 02: QA Generation
 
-Generates and samples the final CheXpercept benchmark QA set.
+Generates QA pairs from Stage 01 deformation results and writes the per-key_id image bundle that Stage 03 evaluates against.
 
 ```bash
 conda activate chexpercept
-cd src/02_qa_generation
 
-python generate_qa.py --config cfg/config.yaml
-python sample_qa.py --config cfg/config.yaml
-python generate_final_chexpercept.py --config cfg/config.yaml
+python src/02_qa_generation/00_generate_qa.py --config cfg/config.yaml --num-workers 8
+```
+
+Outputs land under `src/02_qa_generation/outputs/`:
+- `qa_results/qa_results.json` — all QA dicts keyed by key_id
+- `chexpercept/<key_id>/...` — image bundle (detection, contour QA images, fakes)
+
+To run Stage 03 against this output, copy or symlink to `data/chexpercept/`:
+```bash
+mkdir -p data/chexpercept
+cp src/02_qa_generation/outputs/qa_results/qa_results.json data/chexpercept/chexpercept.json
+ln -sf "$PWD/src/02_qa_generation/outputs/chexpercept" data/chexpercept/chexpercept
 ```
 
 ### Stage 03: VLM Evaluation
@@ -283,20 +297,21 @@ Evaluates a VLM on the CheXpercept benchmark. Open-source models use vLLM; propr
 
 ```bash
 conda activate chexpercept     # use `hulumed` only when --model hulu-med
-cd src/03_eval_vlm_on_chexpercept
 
 # Open-source model (vLLM)
-python 00_eval.py \
+python src/03_eval_vlm_on_chexpercept/00_eval.py \
     --provider opensource \
     --model qwen3.6-27b \
     --oracle_setting none
 
 # Proprietary model (e.g., Gemini)
-python 00_eval.py \
+python src/03_eval_vlm_on_chexpercept/00_eval.py \
     --provider gemini \
     --model gemini-3.1-pro \
     --oracle_setting implicit
 ```
+
+Default `--benchmark-dir` is `data/chexpercept/`. Override with `--benchmark-dir <path>` if your benchmark lives elsewhere.
 
 **Key arguments:**
 
@@ -316,14 +331,19 @@ python 00_eval.py \
 
 ### Stage 04: Result Analysis
 
+Aggregates Stage 03 outputs across models into per-stage accuracy CSVs and plots.
+
 ```bash
 conda activate chexpercept
-cd src/04_analyze_eval_result
 
-python analyze_model_performance.py --config cfg/config.yaml
-python build_per_lesion_table.py --config cfg/config.yaml
-python build_per_path_table.py --config cfg/config.yaml
+python src/04_analyze_eval_result/01_analyze_model_performance.py --oracle_setting implicit
 ```
+
+By default it scans `src/03_eval_vlm_on_chexpercept/outputs/<provider>_<model>/oracle_<setting>/all_results.json` for every model present and writes:
+- `all_models_oracle_<setting>/all_models_summary.csv` (per-model, per-stage accuracy)
+- `plot_stage_accuracy.png`, `plot_contour_revision_detail.png`, `plot_attribute_extraction_detail.png`, `plot_depth_heatmap.png`
+
+Pass `--results-dir <path>` to point at a different Stage 03 output directory.
 
 ---
 

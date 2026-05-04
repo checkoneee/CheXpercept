@@ -16,10 +16,13 @@ import yaml
 _current_dir = os.path.dirname(os.path.abspath(__file__))
 _project_root = os.path.abspath(os.path.join(_current_dir, "../.."))
 
-_api_keys_path = os.path.join(_project_root, "api_info/api_keys.yaml")
-with open(_api_keys_path) as _f:
-    _api_keys = yaml.safe_load(_f)
-os.environ["HF_HOME"] = _api_keys["hf_home"]
+# HF_HOME / HF_HUB_CACHE come from cfg/config.yaml (path config), not api_keys.yaml.
+_cfg_path = os.path.join(_project_root, "cfg/config.yaml")
+_hf_cfg = (yaml.safe_load(open(_cfg_path)) if os.path.exists(_cfg_path) else {}).get("huggingface", {})
+if _hf_cfg.get("hf_home"):
+    os.environ["HF_HOME"] = _hf_cfg["hf_home"]
+if _hf_cfg.get("hf_hub_cache"):
+    os.environ["HF_HUB_CACHE"] = _hf_cfg["hf_hub_cache"]
 
 for _path in [
     _project_root,
