@@ -33,10 +33,10 @@ DEFAULT_RESULTS_DIR = os.path.join(
 
 def compute_average(values: List[Any]) -> float:
     """
-    리스트의 평균을 구합니다.
-    - bool 리스트면 정확도(평균 정확도)를 의미
-    - int/float 리스트면 일반 평균
-    - 비어 있으면 0.0 반환
+    Compute the average of a list.
+    - For a bool list, this is the accuracy (mean accuracy).
+    - For an int/float list, this is the regular mean.
+    - Returns 0.0 if empty.
     """
     if not values:
         return 0.0
@@ -44,7 +44,7 @@ def compute_average(values: List[Any]) -> float:
 
 
 def init_performance_metrics() -> Dict[str, Any]:
-    """qa_path 별로 성능 지표를 쌓을 기본 구조를 생성합니다."""
+    """Build the default structure used to accumulate performance metrics per qa_path."""
     return {
         'revision_required': {
             'depth': {'list': [], 'average': 0},
@@ -67,7 +67,7 @@ def init_performance_metrics() -> Dict[str, Any]:
                 'average (end-to-end)': 0,
                 'average (oracle-passed)': 0,
             },
-            # 세부 correctness (oracle-passed 관점)
+            # Detailed correctness (oracle-passed view)
             'contour_revision_qa_detail': {
                 'expansion': [],
                 'contraction': [],
@@ -111,12 +111,12 @@ def init_performance_metrics() -> Dict[str, Any]:
 
 def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict[str, Any]) -> None:
     """
-    한 케이스(result)에 대해 end-to-end / oracle-passed 정오를 계산하고
-    qa_path 별로 리스트를 업데이트합니다.
+    For a single case (result), compute end-to-end / oracle-passed correctness
+    and update the per-qa_path lists.
     """
     qa_path = result['qa_path']
 
-    # 각 스테이지에 대한 정오 플래그
+    # Correctness flags per stage
     end_to_end_correct = {
         'detection_qa': False,
         'contour_evaluation_qa': False,
@@ -130,7 +130,7 @@ def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict
         'attribute_extraction_qa': False,
     }
 
-    # end-to-end: 앞에서 한 번이라도 틀리면 뒤는 전부 False
+    # end-to-end: once any earlier stage is wrong, every subsequent stage is False
     end_to_end_still_valid = True
     stage_order = ['detection_qa', 'contour_evaluation_qa', 'contour_revision_qa', 'attribute_extraction_qa']
 
@@ -149,13 +149,18 @@ def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict
         if is_correct:
             oracle_passed_correct[qa_type] = True
 
-    # qa_path 별로 실제로 존재하는 스테이지만 반영
+    # Reflect only the stages that actually exist for each qa_path.
+    # For cardiomegaly cases, even when qa_path is revision_required/revision_free,
+    # the attribute_extraction_qa stage is absent, so empty stages in the result dict are skipped.
     path_to_stages = {
         'revision_required': ['detection_qa', 'contour_evaluation_qa', 'contour_revision_qa', 'attribute_extraction_qa'],
         'revision_free': ['detection_qa', 'contour_evaluation_qa', 'attribute_extraction_qa'],
         'lesion_free': ['detection_qa'],
     }
-    qa_type_list = path_to_stages[qa_path]
+    qa_type_list = [
+        qa_type for qa_type in path_to_stages[qa_path]
+        if qa_type == 'detection_qa' or result.get(qa_type)
+    ]
 
     for qa_type in qa_type_list:
         if qa_type == 'detection_qa':
@@ -164,12 +169,12 @@ def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict
             performance_metrics[qa_path][qa_type]['list (end-to-end)'].append(end_to_end_correct[qa_type])
             performance_metrics[qa_path][qa_type]['list (oracle-passed)'].append(oracle_passed_correct[qa_type])
 
-    # depth: end-to-end 기준으로 연속해서 맞춘 stage 수
+    # depth: number of stages correct in a row under end-to-end (only stages actually asked)
     depth = sum(1 for qa_type in qa_type_list if end_to_end_correct[qa_type])
     performance_metrics[qa_path]['depth']['list'].append(depth)
 
-    # ----- 세부 correctness (oracle_passed 관점, end-to-end gating 없이 사용) -----
-    # contour_revision_qa 세부 통계: revision_required 케이스에서만 의미 있음
+    # ----- Detailed correctness (oracle_passed view, no end-to-end gating) -----
+    # contour_revision_qa detailed stats: only meaningful for revision_required cases
     if qa_path == 'revision_required':
         cr = result.get('contour_revision_qa')
         if isinstance(cr, dict):
@@ -178,7 +183,7 @@ def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict
                 if isinstance(sub, dict) and 'correct' in sub:
                     performance_metrics['revision_required']['contour_revision_qa_detail'][sub_key].append(bool(sub['correct']))
 
-    # attribute_extraction_qa 세부 통계: attribute_extraction_qa가 존재하는 모든 path에서 수집
+    # attribute_extraction_qa detailed stats: collected for every path where attribute_extraction_qa exists
     if qa_path in ['revision_required', 'revision_free']:
         ae = result.get('attribute_extraction_qa')
         if isinstance(ae, dict):
@@ -189,7 +194,7 @@ def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict
 
 
 def finalize_stage_averages(performance_metrics: Dict[str, Any]) -> None:
-    """각 qa_path / 스테이지의 리스트를 기반으로 평균 값을 채웁니다."""
+    """Fill in average values from the lists for each qa_path / stage."""
     for qa_path, qa_dict in performance_metrics.items():
         for qa_type, stats in qa_dict.items():
             if 'list (end-to-end)' in stats:
@@ -201,8 +206,8 @@ def finalize_stage_averages(performance_metrics: Dict[str, Any]) -> None:
 
 def build_summary_rows(performance_metrics: Dict[str, Any], model_name: str) -> List[Dict[str, Any]]:
     """
-    CSV에 기록할 요약 행들을 생성합니다.
-    path(qa_path) × setting(end_to_end / oracle_passed) 조합으로 한 행씩 만듭니다.
+    Build the summary rows written to CSV.
+    One row is created per combination of path(qa_path) and setting(end_to_end / oracle_passed).
     """
     summary_rows: List[Dict[str, Any]] = []
 
@@ -254,7 +259,7 @@ def build_summary_rows(performance_metrics: Dict[str, Any], model_name: str) -> 
 
 
 def save_summary_csv(model_eval_path: str, summary_rows: List[Dict[str, Any]]) -> str:
-    """요약 결과를 CSV로 저장하고, 저장 경로를 반환합니다."""
+    """Save the summary results as CSV and return the saved path."""
     csv_path = os.path.join(model_eval_path, "model_performance_summary.csv")
     fieldnames = [
         'path', 'model', 'setting',
@@ -269,7 +274,7 @@ def save_summary_csv(model_eval_path: str, summary_rows: List[Dict[str, Any]]) -
 
 
 def build_contour_revision_detail_rows(performance_metrics: Dict[str, Any], model_name: str) -> List[Dict[str, Any]]:
-    """contour_revision 세부 분석 행 (qa_path=revision_required, oracle_passed 관점)."""
+    """Detailed analysis rows for contour_revision (qa_path=revision_required, oracle_passed view)."""
     rr = performance_metrics.get('revision_required', {})
     cr_detail = rr.get('contour_revision_qa_detail', {})
     if not cr_detail:
@@ -284,7 +289,7 @@ def build_contour_revision_detail_rows(performance_metrics: Dict[str, Any], mode
 
 
 def build_attribute_extraction_detail_rows(performance_metrics: Dict[str, Any], model_name: str) -> List[Dict[str, Any]]:
-    """attribute_extraction 세부 분석 행 (revision_required + revision_free 합산, oracle_passed 관점)."""
+    """Detailed analysis rows for attribute_extraction (sum of revision_required + revision_free, oracle_passed view)."""
     ae_merged: Dict[str, List[Any]] = {
         'distribution': [],
         'location': [],
@@ -306,7 +311,7 @@ def build_attribute_extraction_detail_rows(performance_metrics: Dict[str, Any], 
 
 
 def save_contour_revision_detail_csv(model_eval_path: str, rows: List[Dict[str, Any]]) -> Optional[str]:
-    """contour_revision 세부 결과를 CSV로 저장."""
+    """Save the detailed contour_revision results as CSV."""
     if not rows:
         return None
     csv_path = os.path.join(model_eval_path, "model_performance_detail_contour_revision.csv")
@@ -319,7 +324,7 @@ def save_contour_revision_detail_csv(model_eval_path: str, rows: List[Dict[str, 
 
 
 def save_attribute_extraction_detail_csv(model_eval_path: str, rows: List[Dict[str, Any]]) -> Optional[str]:
-    """attribute_extraction 세부 결과를 CSV로 저장."""
+    """Save the detailed attribute_extraction results as CSV."""
     if not rows:
         return None
     csv_path = os.path.join(model_eval_path, "model_performance_detail_attribute_extraction.csv")

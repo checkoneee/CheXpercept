@@ -10,8 +10,14 @@ from typing import Dict, List
 # ---------------------------------------------------------------------------
 
 def extract_int(text: str) -> int:
-    """Return the first integer found in *text*, or -1 if none."""
-    nums = re.findall(r"\d+", text)
+    """Return the first integer found in *text*, or -1 if none.
+
+    Recognizes negative sign so that the sentinel "-1" emitted by
+    ``normalize_response`` survives the round-trip and stays as -1
+    (not 1) — preventing non-numeric responses from being silently
+    scored as correct when ground truth happens to equal 1.
+    """
+    nums = re.findall(r"-?\d+", text)
     return int(nums[0]) if nums else -1
 
 

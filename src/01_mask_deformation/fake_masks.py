@@ -102,10 +102,10 @@ def generate_fake_masks(
                 overlapped_regions.append(region_name)
     
     overlapped_regions = list(set(overlapped_regions) - set([anatomy]))
-    
-    # 비슷한 anatomy도 빼야 한다.
+
+    # Similar anatomies must also be excluded.
     def get_zone_from_anatomy(anatomy):
-        """anatomy에서 zone 정보 추출 (upper zone, mid zone, lung base)"""
+        """Extract zone info from anatomy (upper zone, mid zone, lung base)."""
         if 'costophrenic angle' in anatomy:
             return 'lung base'
         elif 'upper zone' in anatomy:
@@ -115,48 +115,48 @@ def generate_fake_masks(
         elif 'lung base' in anatomy:
             return 'lung base'
         return None
-    
+
     def get_side_from_anatomy(anatomy):
-        """anatomy에서 side 정보 추출 (left, right)"""
+        """Extract side info from anatomy (left, right)."""
         if 'left' in anatomy:
             return 'left'
         elif 'right' in anatomy:
             return 'right'
         return None
-    
+
     filtered_regions = []
-    
-    # anatomy_name의 zone과 side 정보
+
+    # zone and side info for anatomy_name
     anatomy_zone = get_zone_from_anatomy(anatomy)
     anatomy_side = get_side_from_anatomy(anatomy)
-    # anatomy_name이 peripheral을 포함하는지 확인
+    # check whether anatomy_name contains 'peripheral'
     anatomy_has_peripheral = 'peripheral' in anatomy
-    # anatomy_name이 lateral을 포함하는지 확인
+    # check whether anatomy_name contains 'lateral'
     anatomy_has_lateral = 'lateral' in anatomy
-    # anatomy_name이 costophrenic angle인지 확인
+    # check whether anatomy_name is a costophrenic angle
     anatomy_is_costophrenic = 'costophrenic angle' in anatomy
-    
+
     for loc_name in overlapped_regions:
         loc_zone = get_zone_from_anatomy(loc_name)
         loc_side = get_side_from_anatomy(loc_name)
-        
-        # 같은 zone이고 같은 side일 때만 충돌 체크
+
+        # Only check for conflicts when zone and side match
         if anatomy_zone and loc_zone and anatomy_zone == loc_zone:
             if anatomy_side and loc_side and anatomy_side == loc_side:
-                # peripheral과 lateral이 같은 zone, 같은 side에 있으면 함께 나오지 않도록 필터링
+                # Filter out peripheral and lateral pairs in the same zone and side so they don't appear together
                 if anatomy_has_peripheral and 'lateral' in loc_name:
                     continue
                 if anatomy_has_lateral and 'peripheral' in loc_name:
                     continue
-                
-                # costophrenic angle과 lung base의 peripheral/lateral이 함께 나오지 않도록 필터링
+
+                # Filter so that costophrenic angle and lung base peripheral/lateral don't appear together
                 if anatomy_is_costophrenic:
                     if 'peripheral' in loc_name or 'lateral' in loc_name:
                         continue
                 if anatomy_has_peripheral or anatomy_has_lateral:
                     if 'costophrenic angle' in loc_name:
                         continue
-        
+
         filtered_regions.append(loc_name)
     
     for region_name in filtered_regions:
@@ -193,10 +193,10 @@ def generate_fake_masks(
             
             if no_points_collected:
                 break
-            
-            # 5. Accumulated points 준비
+
+            # 5. Prepare accumulated points
             log_print(f"    Preparing accumulated points...")
-            
+
             new_mask_component_info = {
                 'mask_component_id': 'test',
                 'mask_input': logits,
@@ -205,26 +205,26 @@ def generate_fake_masks(
             }
 
             pos_pts, neg_pts = select_points(best_mask)
-            
+
             for pt in pos_pts:
                 x, y = pt
                 if best_mask[y, x] == 255:
-                    # center point가 아닌 경우만 추가
+                    # only add if not the center point
                     new_mask_component_info['accumulated_points'].append(pt)
                     new_mask_component_info['accumulated_labels'].append(1)
-                    
+
             current_accumulated_points, current_accumulated_labels = prepare_accumulated_points(
                 new_mask_component_info, all_expansion_points, all_contraction_points
             )
-            
-            # 6. Mask input 생성 및 조정
+
+            # 6. Create and adjust mask input
             log_print(f"    Creating mask input...")
             mask_input, combined_cxas_mask = create_mask_input(
-                new_mask_component_info, best_mask, all_expansion_points, 
+                new_mask_component_info, best_mask, all_expansion_points,
                 all_contraction_points, chex_rl, chex_ll
             )
-            
-            # 7. 예측 및 후처리
+
+            # 7. Predict and postprocess
             log_print(f"    Predicting and postprocessing mask...")
             mask, is_valid, logits = predict_and_postprocess_mask(
                 model, processor, inference_state, current_accumulated_points,
@@ -239,7 +239,7 @@ def generate_fake_masks(
                 mask_pil = Image.fromarray(mask_uint8)
                 mask_pil.save(os.path.join(output_path, f"{org_mask_path}_fake_{region_name}_{operation}.png"))
 
-                # 시각화를 위한 필수 인자가 모두 있을 때만 호출
+                # Only call when all required visualization arguments are provided
                 if config is not None and dicom_id is not None and image is not None:
                     save_path = os.path.join(
                         output_path,
@@ -287,60 +287,60 @@ def generate_fake_masks(
     
     return fake_masks
 
-def visualize_fake_points(best_mask, fake_points2, fake_points3, center_point, 
+def visualize_fake_points(best_mask, fake_points2, fake_points3, center_point,
                           suboptimal_component_id, org_mask_path, output_path):
     """
-    Fake points를 best_mask 위에 시각화하여 이미지로 저장
-    
+    Visualize fake points on top of best_mask and save as an image.
+
     Args:
-        best_mask: best mask (numpy array, 0~255 또는 0~1 범위)
-        fake_points2: fake points 2 리스트 [(x, y), ...]
-        fake_points3: fake points 3 리스트 [(x, y), ...]
-        center_point: 중심점 (x, y) 튜플 또는 None
+        best_mask: best mask (numpy array, range 0~255 or 0~1)
+        fake_points2: list of fake points 2 [(x, y), ...]
+        fake_points3: list of fake points 3 [(x, y), ...]
+        center_point: center point (x, y) tuple or None
         suboptimal_component_id: suboptimal component ID
-        org_mask_path: 원본 mask path (파일명에 사용)
-        output_path: 출력 경로
+        org_mask_path: original mask path (used in the filename)
+        output_path: output directory
     """
     if len(fake_points2) == 0 and len(fake_points3) == 0:
         return
-    
+
     fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-    
-    # best_mask 표시 (grayscale)
+
+    # Show best_mask (grayscale)
     if best_mask.max() > 1.0:
         best_mask_vis = best_mask / 255.0
     else:
         best_mask_vis = best_mask.copy()
-    
+
     ax.imshow(best_mask_vis, cmap='gray', alpha=0.5)
-    
-    # fake_points2 표시 (빨간색)
+
+    # Show fake_points2 (red)
     if len(fake_points2) > 0:
         fake_points2_x = [pt[0] for pt in fake_points2]
         fake_points2_y = [pt[1] for pt in fake_points2]
-        ax.scatter(fake_points2_x, fake_points2_y, c='red', s=50, marker='o', 
-                  label=f'Fake Points 2 ({len(fake_points2)} points)', 
+        ax.scatter(fake_points2_x, fake_points2_y, c='red', s=50, marker='o',
+                  label=f'Fake Points 2 ({len(fake_points2)} points)',
                   edgecolors='darkred', linewidths=1.5)
-    
-    # fake_points3 표시 (파란색)
+
+    # Show fake_points3 (blue)
     if len(fake_points3) > 0:
         fake_points3_x = [pt[0] for pt in fake_points3]
         fake_points3_y = [pt[1] for pt in fake_points3]
-        ax.scatter(fake_points3_x, fake_points3_y, c='blue', s=50, marker='s', 
-                  label=f'Fake Points 3 ({len(fake_points3)} points)', 
+        ax.scatter(fake_points3_x, fake_points3_y, c='blue', s=50, marker='s',
+                  label=f'Fake Points 3 ({len(fake_points3)} points)',
                   edgecolors='darkblue', linewidths=1.5)
-    
-    # center_point 표시 (녹색)
+
+    # Show center_point (green)
     if center_point is not None:
         center_x, center_y = center_point
-        ax.scatter(center_x, center_y, c='green', s=100, marker='*', 
+        ax.scatter(center_x, center_y, c='green', s=100, marker='*',
                   label='Center Point', edgecolors='darkgreen', linewidths=2)
-    
+
     ax.set_title(f'Fake Points Visualization\n{org_mask_path}')
     ax.legend(loc='upper right')
     ax.axis('off')
-    
-    # 이미지 저장
+
+    # Save image
     debug_save_path = os.path.join(output_path, f"{org_mask_path}_fake_points_debug.png")
     plt.savefig(debug_save_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
@@ -358,84 +358,84 @@ def _generate_fake_points_from_dilated_mask(
     min_point_distance=100
 ):
     """
-    previous_best_mask를 dilation 시킨 mask의 contour에서 center point에서 거리를 유지하면서 fake point 생성
-    
+    Generate fake points on the contour of the dilated previous_best_mask while keeping a distance from the center point.
+
     Args:
-        previous_best_mask: 이전 best mask (1024x1024 numpy array, 0~1 범위)
-        cxas_mask_np: CXAS mask numpy array (1024x1024, 0~255 범위)
-        center_point: 중심점 (y, x) 튜플
-        depth_level: Depth 변형 레벨
-        iterations_per_depth: depth가 1 증가할 때마다 수행할 dilation iteration 횟수
-        kernel_size: 팽창 연산에 사용할 커널 크기
-        min_distance_from_center: center point와의 최소 거리 (픽셀 단위)
-        previous_points: 이전에 사용된 포인트들 [(x, y), ...]
-        min_point_distance: previous_points와의 최소 거리 (픽셀 단위)
-    
+        previous_best_mask: previous best mask (1024x1024 numpy array, range 0~1)
+        cxas_mask_np: CXAS mask numpy array (1024x1024, range 0~255)
+        center_point: center point (y, x) tuple
+        depth_level: depth deformation level
+        iterations_per_depth: number of dilation iterations performed each time depth increases by 1
+        kernel_size: kernel size used for the dilation operation
+        min_distance_from_center: minimum distance from the center point (in pixels)
+        previous_points: previously used points [(x, y), ...]
+        min_point_distance: minimum distance from previous_points (in pixels)
+
     Returns:
-        fake_points: 생성된 fake point들 [(x, y), ...]
-        dilated_mask: 팽창된 마스크 (1024x1024 numpy array, 0~1 범위)
-        depth_width_levels: 각 depth에서 선택된 width level 리스트 (빈 리스트 반환)
-        dilated_masks_by_depth: 각 depth별 dilated mask 리스트 [(mask, depth_iter), ...]
+        fake_points: generated fake points [(x, y), ...]
+        dilated_mask: dilated mask (1024x1024 numpy array, range 0~1)
+        depth_width_levels: list of width levels selected at each depth (returned empty)
+        dilated_masks_by_depth: list of dilated masks per depth [(mask, depth_iter), ...]
     """
     fake_points = []
     dilated_masks_by_depth = []
-    
-    # previous_best_mask를 binary로 변환 (threshold 0.5)
+
+    # Convert previous_best_mask to binary (threshold 0.5)
     prev_mask_binary = (previous_best_mask > 0.5).astype(np.uint8)
-    prev_mask_binary = prev_mask_binary * 255  # 0-255 범위로 변환
-    
-    # kernel_size x kernel_size 크기의 커널 생성
+    prev_mask_binary = prev_mask_binary * 255  # convert to 0-255 range
+
+    # Create kernel of size kernel_size x kernel_size
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-    
-    # cxas_mask_np를 binary로 변환 (threshold 0.5)
+
+    # Convert cxas_mask_np to binary (threshold 0.5)
     cxas_mask_binary = (cxas_mask_np > 0.5).astype(np.uint8)
-    cxas_mask_binary = cxas_mask_binary * 255  # 0-255 범위로 변환
-    
-    # center_point 좌표 추출 (y, x) -> (x, y)로 변환
+    cxas_mask_binary = cxas_mask_binary * 255  # convert to 0-255 range
+
+    # Extract center_point coordinates (y, x) -> convert to (x, y)
     center_x, center_y = center_point
-    
-    # depth_level만큼 반복하면서 각각 iterations_per_depth만큼 dilation 수행 (누적)
+
+    # Repeat depth_level times, each performing iterations_per_depth dilations (accumulating)
     current_mask = prev_mask_binary.copy()
     for depth_iter in range(1, depth_level + 1):
         dilated_mask = cv2.dilate(current_mask, kernel, iterations=iterations_per_depth)
-        current_mask = dilated_mask  # 다음 iteration을 위해 업데이트
-        # depth별 mask 저장 (0-1 범위로 정규화)
+        current_mask = dilated_mask  # update for the next iteration
+        # Save the per-depth mask (normalized to 0-1)
         dilated_masks_by_depth.append((dilated_mask / 255.0, depth_iter))
-    
-    # dilated_mask의 contour(외곽선) 추출
+
+    # Extract the contour (outline) of dilated_mask
     contours, _ = cv2.findContours(dilated_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    
-    # contour를 binary mask로 변환 (외곽선만 그리기)
+
+    # Convert contour to binary mask (draw outline only)
     contour_mask = np.zeros_like(dilated_mask)
     cv2.drawContours(contour_mask, contours, -1, 255, thickness=1)
-    
-    # contour 중에서 cxas_mask와 겹치는 부분만 추출
+
+    # Keep only contour parts overlapping with cxas_mask
     valid_contour = cv2.bitwise_and(contour_mask, cxas_mask_binary)
-    
-    # valid_contour에서 점들의 좌표 추출
+
+    # Extract point coordinates from valid_contour
     y_coords, x_coords = np.where(valid_contour > 0)
-    
+
     if len(y_coords) == 0:
         log_print(f"    [Fake Dilation] No valid contour points found")
         dilated_mask_normalized = (dilated_mask / 255.0).astype(np.float32)
         return fake_points, dilated_mask_normalized, [], dilated_masks_by_depth
-    
-    # 좌표들을 리스트로 변환 (x, y)
+
+    # Convert coordinates to a list (x, y)
     candidate_points = list(zip(x_coords, y_coords))
-    
-    # center point에서 거리 필터링
+
+    # Filter by distance from the center point
     valid_candidates = []
     for candidate_pt in candidate_points:
         cx, cy = candidate_pt
-        # center point와의 거리 계산
+        # Compute distance to center point
         distance_from_center = np.sqrt((cx - center_x)**2 + (cy - center_y)**2)
-        
+
         if distance_from_center >= min_distance_from_center:
             valid_candidates.append(candidate_pt)
-    
+
     candidate_points = valid_candidates
-    
-    # previous_points와의 거리 필터링
+
+    # Filter by distance from previous_points
     if previous_points is not None and len(previous_points) > 0:
         valid_candidates = []
         for candidate_pt in candidate_points:
@@ -459,49 +459,49 @@ def _generate_fake_points_from_dilated_mask(
         log_print(f"    [Fake Dilation] No valid candidates after filtering")
         dilated_mask_normalized = (dilated_mask / 255.0).astype(np.float32)
         return fake_points, dilated_mask_normalized, [], dilated_masks_by_depth
-    
-    # 최대 5개까지 점 선택 (서로 일정 거리 이상 떨어지도록)
+
+    # Pick at most 5 points (each separated by at least the minimum spacing)
     max_points = 5
-    min_spacing = min_point_distance  # 점들 사이의 최소 거리
+    min_spacing = min_point_distance  # minimum distance between points
     selected_points = []
-    
-    # 첫 번째 점 랜덤 선택
+
+    # Randomly pick the first point
     first_point = random.choice(candidate_points)
     selected_points.append(first_point)
     fake_points.append(first_point)
-    
-    # 나머지 점들 선택 (최대 4개 더)
+
+    # Pick the remaining points (up to 4 more)
     remaining_candidates = [pt for pt in candidate_points if pt != first_point]
-    
+
     for _ in range(max_points - 1):
         if len(remaining_candidates) == 0:
             break
-        
+
         valid_candidates = []
         for cand_pt in remaining_candidates:
             cand_x, cand_y = cand_pt
-            # 이미 선택된 점들과의 최소 거리 확인
+            # Check minimum distance against already-selected points
             min_dist_to_selected = float('inf')
             for sel_pt in selected_points:
                 sel_x, sel_y = sel_pt
                 dist = np.sqrt((cand_x - sel_x)**2 + (cand_y - sel_y)**2)
                 min_dist_to_selected = min(min_dist_to_selected, dist)
-            
+
             if min_dist_to_selected >= min_spacing:
                 valid_candidates.append(cand_pt)
-        
+
         if len(valid_candidates) == 0:
             break
-        
-        # 랜덤으로 하나 선택
+
+        # Pick one at random
         next_point = random.choice(valid_candidates)
         selected_points.append(next_point)
         fake_points.append(next_point)
         remaining_candidates.remove(next_point)
-    
+
     log_print(f"    [Fake Dilation] Selected {len(fake_points)} point(s) from depth {depth_level} contour")
-    
-    # dilated_mask를 0-1 범위로 변환하여 반환
+
+    # Convert dilated_mask to 0-1 range and return
     dilated_mask_normalized = (dilated_mask / 255.0).astype(np.float32)
     
     return fake_points, dilated_mask_normalized, [], dilated_masks_by_depth
@@ -518,84 +518,84 @@ def _generate_fake_points_from_eroded_mask(
     min_point_distance=100
 ):
     """
-    previous_best_mask를 erosion 시킨 mask의 contour에서 center point에서 거리를 유지하면서 fake point 생성
-    
+    Generate fake points on the contour of the eroded previous_best_mask while keeping a distance from the center point.
+
     Args:
-        previous_best_mask: 이전 best mask (1024x1024 numpy array, 0~1 범위)
-        cxas_mask_np: CXAS mask numpy array (1024x1024, 0~255 범위)
-        center_point: 중심점 (y, x) 튜플
-        depth_level: Depth 변형 레벨
-        iterations_per_depth: depth가 1 증가할 때마다 수행할 erosion iteration 횟수
-        kernel_size: 침식 연산에 사용할 커널 크기
-        min_distance_from_center: center point와의 최소 거리 (픽셀 단위)
-        previous_points: 이전에 사용된 포인트들 [(x, y), ...]
-        min_point_distance: previous_points와의 최소 거리 (픽셀 단위)
-    
+        previous_best_mask: previous best mask (1024x1024 numpy array, range 0~1)
+        cxas_mask_np: CXAS mask numpy array (1024x1024, range 0~255)
+        center_point: center point (y, x) tuple
+        depth_level: depth deformation level
+        iterations_per_depth: number of erosion iterations performed each time depth increases by 1
+        kernel_size: kernel size used for the erosion operation
+        min_distance_from_center: minimum distance from the center point (in pixels)
+        previous_points: previously used points [(x, y), ...]
+        min_point_distance: minimum distance from previous_points (in pixels)
+
     Returns:
-        fake_points: 생성된 fake point들 [(x, y), ...]
-        eroded_mask: 침식된 마스크 (1024x1024 numpy array, 0~1 범위)
-        depth_width_levels: 각 depth에서 선택된 width level 리스트 (빈 리스트 반환)
-        eroded_masks_by_depth: 각 depth별 eroded mask 리스트 [(mask, depth_iter), ...]
+        fake_points: generated fake points [(x, y), ...]
+        eroded_mask: eroded mask (1024x1024 numpy array, range 0~1)
+        depth_width_levels: list of width levels selected at each depth (returned empty)
+        eroded_masks_by_depth: list of eroded masks per depth [(mask, depth_iter), ...]
     """
     fake_points = []
     eroded_masks_by_depth = []
-    
-    # previous_best_mask를 binary로 변환 (threshold 0.5)
+
+    # Convert previous_best_mask to binary (threshold 0.5)
     prev_mask_binary = (previous_best_mask > 0.5).astype(np.uint8)
-    prev_mask_binary = prev_mask_binary * 255  # 0-255 범위로 변환
-    
-    # kernel_size x kernel_size 크기의 커널 생성
+    prev_mask_binary = prev_mask_binary * 255  # convert to 0-255 range
+
+    # Create kernel of size kernel_size x kernel_size
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-    
-    # cxas_mask_np를 binary로 변환 (threshold 0.5)
+
+    # Convert cxas_mask_np to binary (threshold 0.5)
     cxas_mask_binary = (cxas_mask_np > 0.5).astype(np.uint8)
-    cxas_mask_binary = cxas_mask_binary * 255  # 0-255 범위로 변환
-    
-    # center_point 좌표 추출 (y, x) -> (x, y)로 변환
+    cxas_mask_binary = cxas_mask_binary * 255  # convert to 0-255 range
+
+    # Extract center_point coordinates (y, x) -> convert to (x, y)
     center_x, center_y = center_point
-    
-    # depth_level만큼 반복하면서 각각 iterations_per_depth만큼 erosion 수행 (누적)
+
+    # Repeat depth_level times, each performing iterations_per_depth erosions (accumulating)
     current_mask = prev_mask_binary.copy()
     for depth_iter in range(1, depth_level + 1):
         eroded_mask = cv2.erode(current_mask, kernel, iterations=iterations_per_depth)
-        current_mask = eroded_mask  # 다음 iteration을 위해 업데이트
-        # depth별 mask 저장 (0-1 범위로 정규화)
+        current_mask = eroded_mask  # update for the next iteration
+        # Save the per-depth mask (normalized to 0-1)
         eroded_masks_by_depth.append((eroded_mask / 255.0, depth_iter))
-    
-    # eroded_mask의 contour(외곽선) 추출
+
+    # Extract the contour (outline) of eroded_mask
     contours, _ = cv2.findContours(eroded_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    
-    # contour를 binary mask로 변환 (외곽선만 그리기)
+
+    # Convert contour to binary mask (draw outline only)
     contour_mask = np.zeros_like(eroded_mask)
     cv2.drawContours(contour_mask, contours, -1, 255, thickness=1)
-    
-    # contour 중에서 cxas_mask와 겹치는 부분만 추출
+
+    # Keep only contour parts overlapping with cxas_mask
     valid_contour = cv2.bitwise_and(contour_mask, cxas_mask_binary)
-    
-    # valid_contour에서 점들의 좌표 추출
+
+    # Extract point coordinates from valid_contour
     y_coords, x_coords = np.where(valid_contour > 0)
-    
+
     if len(y_coords) == 0:
         log_print(f"    [Fake Erosion] No valid contour points found")
         eroded_mask_normalized = (eroded_mask / 255.0).astype(np.float32)
         return fake_points, eroded_mask_normalized, [], eroded_masks_by_depth
-    
-    # 좌표들을 리스트로 변환 (x, y)
+
+    # Convert coordinates to a list (x, y)
     candidate_points = list(zip(x_coords, y_coords))
-    
-    # center point에서 거리 필터링
+
+    # Filter by distance from the center point
     valid_candidates = []
     for candidate_pt in candidate_points:
         cx, cy = candidate_pt
-        # center point와의 거리 계산
+        # Compute distance to center point
         distance_from_center = np.sqrt((cx - center_x)**2 + (cy - center_y)**2)
-        
+
         if distance_from_center >= min_distance_from_center:
             valid_candidates.append(candidate_pt)
-    
+
     candidate_points = valid_candidates
-    
-    # previous_points와의 거리 필터링
+
+    # Filter by distance from previous_points
     if previous_points is not None and len(previous_points) > 0:
         valid_candidates = []
         for candidate_pt in candidate_points:
@@ -619,49 +619,49 @@ def _generate_fake_points_from_eroded_mask(
         log_print(f"    [Fake Erosion] No valid candidates after filtering")
         eroded_mask_normalized = (eroded_mask / 255.0).astype(np.float32)
         return fake_points, eroded_mask_normalized, [], eroded_masks_by_depth
-    
-    # 최대 5개까지 점 선택 (서로 일정 거리 이상 떨어지도록)
+
+    # Pick at most 5 points (each separated by at least the minimum spacing)
     max_points = 5
-    min_spacing = min_point_distance  # 점들 사이의 최소 거리
+    min_spacing = min_point_distance  # minimum distance between points
     selected_points = []
-    
-    # 첫 번째 점 랜덤 선택
+
+    # Randomly pick the first point
     first_point = random.choice(candidate_points)
     selected_points.append(first_point)
     fake_points.append(first_point)
-    
-    # 나머지 점들 선택 (최대 4개 더)
+
+    # Pick the remaining points (up to 4 more)
     remaining_candidates = [pt for pt in candidate_points if pt != first_point]
-    
+
     for _ in range(max_points - 1):
         if len(remaining_candidates) == 0:
             break
-        
+
         valid_candidates = []
         for cand_pt in remaining_candidates:
             cand_x, cand_y = cand_pt
-            # 이미 선택된 점들과의 최소 거리 확인
+            # Check minimum distance against already-selected points
             min_dist_to_selected = float('inf')
             for sel_pt in selected_points:
                 sel_x, sel_y = sel_pt
                 dist = np.sqrt((cand_x - sel_x)**2 + (cand_y - sel_y)**2)
                 min_dist_to_selected = min(min_dist_to_selected, dist)
-            
+
             if min_dist_to_selected >= min_spacing:
                 valid_candidates.append(cand_pt)
-        
+
         if len(valid_candidates) == 0:
             break
-        
-        # 랜덤으로 하나 선택
+
+        # Pick one at random
         next_point = random.choice(valid_candidates)
         selected_points.append(next_point)
         fake_points.append(next_point)
         remaining_candidates.remove(next_point)
-    
+
     log_print(f"    [Fake Erosion] Selected {len(fake_points)} point(s) from depth {depth_level} contour")
-    
-    # eroded_mask를 0-1 범위로 변환하여 반환
+
+    # Convert eroded_mask to 0-1 range and return
     eroded_mask_normalized = (eroded_mask / 255.0).astype(np.float32)
     
     return fake_points, eroded_mask_normalized, [], eroded_masks_by_depth
@@ -699,35 +699,35 @@ def generate_fake_masks2(
     best_mask = (best_mask * 255).astype(np.uint8)
     
     fake_masks = []
-    all_fake_points = []  # fake points 저장 (최대 5개)
-    
+    all_fake_points = []  # store fake points (up to 5)
+
     max_retries = 10
     max_fake = min(num_option, 5)
-    
-    # 이전 deformation에서 사용된 포인트 + 새 fake 포인트들을 점점 누적해서
-    # 서로 멀리 떨어진 contour 포인트가 선택되도록 함
+
+    # Accumulate the points used in previous deformations together with newly
+    # generated fake points so contour points selected across rounds stay far apart
     prev_exp_points = {k: v.copy() for k, v in previous_all_expansion_points.items()}
     prev_cont_points = {k: v.copy() for k, v in previous_all_contraction_points.items()}
-    
-    # fake points는 모든 sequnece를 다 고려해야함
+
+    # Fake points must consider the entire sequence
     fake_expansion_points = {k: v.copy() for k, v in all_expansion_points_for_fake.items()}
     fake_contraction_points = {k: v.copy() for k, v in all_contraction_points_for_fake.items()}
-    
-    # previous_best_mask를 사용해서 fake point 생성 (한 번만 수행, 최대 5개)
+
+    # Use previous_best_mask to generate fake points (only once, up to 5)
     if center_point is not None and previous_best_mask is not None:
-        # previous_best_mask를 0-1 범위로 정규화 (필요한 경우)
+        # Normalize previous_best_mask to 0-1 range (if needed)
         if previous_best_mask.max() > 1.0:
             previous_best_mask_normalized = previous_best_mask / 255.0
         else:
             previous_best_mask_normalized = previous_best_mask.copy()
-        
-        # cxas_mask 생성
+
+        # Create cxas_mask
         if target == 'cardiomegaly':
             cxas_mask_np = np.ones_like(previous_best_mask_normalized, dtype=np.uint8) * 255
         else:
             cxas_mask_np = np.logical_or(chex_rl, chex_ll).astype(np.uint8) * 255
-        
-        # Fake point 생성 (부족하면 depth_level/iterations_per_depth 증가하여 재시도)
+
+        # Generate fake points (if not enough, retry with increased depth_level/iterations_per_depth)
         min_fake_points = 2
         max_fake_points = 5
         initial_depth_level = 2 if target != 'cardiomegaly' else 1
@@ -740,16 +740,16 @@ def generate_fake_masks2(
         
         while len(all_fake_points) < min_fake_points and retry_attempt < max_retry_attempts:
             if retry_attempt > 0:
-                # depth_level 증가 또는 iterations_per_depth 증가
+                # increase depth_level or iterations_per_depth
                 if retry_attempt == 1:
                     current_depth_level += 1
                     log_print(f"    [Fake Points] Retry {retry_attempt}: Increasing depth_level to {current_depth_level}")
                 else:
                     current_iterations_per_depth += 1
                     log_print(f"    [Fake Points] Retry {retry_attempt}: Increasing iterations_per_depth to {current_iterations_per_depth}")
-            
+
             if operation == 'contraction':
-                # Expansion: previous_best_mask를 dilation 시킨 mask의 contour에서 fake point 뽑기
+                # Expansion: pick fake points from the contour of the dilated previous_best_mask
                 fake_points, _, _, _ = _generate_fake_points_from_dilated_mask(
                     previous_best_mask_normalized,
                     cxas_mask_np,
@@ -763,7 +763,7 @@ def generate_fake_masks2(
                 )
                 
             elif operation == 'expansion':
-                # Contraction: previous_best_mask를 erosion 시킨 mask의 contour에서 fake point 뽑기
+                # Contraction: pick fake points from the contour of the eroded previous_best_mask
                 fake_points, _, _, _ = _generate_fake_points_from_eroded_mask(
                     previous_best_mask_normalized,
                     cxas_mask_np,
@@ -776,12 +776,12 @@ def generate_fake_masks2(
                     min_point_distance=min_point_distance
                 )
             
-            # 새로 생성된 점들 중에서 기존 점들과 거리를 유지하는 점만 추가
+            # Among the newly generated points, only keep those that stay far enough from existing points
             if len(fake_points) > 0:
                 valid_new_points = []
                 for new_pt in fake_points:
                     is_valid = True
-                    # 기존 fake points와의 거리 확인
+                    # check distance against existing fake points
                     for existing_pt in all_fake_points:
                         ex, ey = existing_pt
                         nx, ny = new_pt
@@ -789,65 +789,65 @@ def generate_fake_masks2(
                         if distance < min_point_distance:
                             is_valid = False
                             break
-                    
+
                     if is_valid:
                         valid_new_points.append(new_pt)
-                
+
                 if len(valid_new_points) > 0:
                     all_fake_points.extend(valid_new_points)
                     log_print(f"    [Fake Points] Generated {len(valid_new_points)} fake points (total: {len(all_fake_points)}, depth_level={current_depth_level}, iterations_per_depth={current_iterations_per_depth})")
-            
+
             retry_attempt += 1
-        
-        # Fake point가 2개 미만이면 chex_mask 내부에서 추가로 생성
+
+        # If fewer than 2 fake points were created, generate additional ones from inside chex_mask
         min_fake_points = 2
         if len(all_fake_points) < min_fake_points and center_point is not None:
             log_print(f"    [Fake Points] Only {len(all_fake_points)} points generated, generating additional points from chex_mask...")
-            
-            # chex_mask 내부의 모든 점 찾기
+
+            # Find all points inside chex_mask
             chex_mask_np = np.logical_or(chex_rl, chex_ll).astype(np.uint8)
             y_coords, x_coords = np.where(chex_mask_np > 0)
-            
+
             if len(y_coords) > 0:
-                # 모든 candidate points 생성
+                # Build all candidate points
                 candidate_points = list(zip(x_coords, y_coords))
-                
-                # center_point와의 거리 필터링 (최소 100, 최대 300)
+
+                # Filter by distance from center_point (min 100, max 300)
                 center_x, center_y = center_point
                 max_distance_from_center = 300
                 valid_candidates = []
                 for candidate_pt in candidate_points:
                     cx, cy = candidate_pt
                     distance_from_center = np.sqrt((cx - center_x)**2 + (cy - center_y)**2)
-                    
+
                     if 100 <= distance_from_center <= max_distance_from_center:  # min_distance_from_center ~ max_distance_from_center
                         valid_candidates.append(candidate_pt)
-                
-                # 이미 생성된 fake points와의 거리 필터링
+
+                # Filter by distance from already-generated fake points
                 if len(all_fake_points) > 0:
                     filtered_candidates = []
                     for candidate_pt in valid_candidates:
                         cx, cy = candidate_pt
                         is_far_enough = True
-                        
+
                         for existing_pt in all_fake_points + get_all_expansion_points(fake_expansion_points) + get_all_contraction_points(fake_contraction_points):
                             ex, ey = existing_pt
                             distance = np.sqrt((cx - ex)**2 + (cy - ey)**2)
-                            
+
                             if distance < min_point_distance:
                                 is_far_enough = False
                                 break
-                        
+
                         if is_far_enough:
                             filtered_candidates.append(candidate_pt)
-                    
+
                     valid_candidates = filtered_candidates
-                
-                # 필요한 만큼 추가 점 선택 (최대 5개까지, 최소 2개는 보장)
+
+                # Pick as many additional points as needed (up to 5, guaranteeing at least 2)
                 num_needed = min(min_fake_points - len(all_fake_points), 5 - len(all_fake_points))
-                
+
                 if len(valid_candidates) > 0 and num_needed > 0:
-                    # 랜덤으로 선택
+                    # Pick at random
                     selected_additional = random.sample(valid_candidates, min(num_needed, len(valid_candidates)))
                     all_fake_points.extend(selected_additional)
                     log_print(f"    [Fake Points] Generated {len(selected_additional)} additional fake points from chex_mask (total: {len(all_fake_points)})")
@@ -855,45 +855,45 @@ def generate_fake_masks2(
                     log_print(f"    [Fake Points] WARNING: Could not generate additional points from chex_mask (no valid candidates)")
             else:
                 log_print(f"    [Fake Points] WARNING: Could not generate additional points from chex_mask (empty mask)")
-    
+
     retry_count = 0
-    
-    # fake_mask 생성 시 depth_level과 iterations_per_depth를 동적으로 증가시킬 수 있도록 초기값 설정
+
+    # Set initial values so depth_level and iterations_per_depth can grow dynamically during fake_mask generation
     initial_fake_mask_depth_level = 2 if target != 'cardiomegaly' else 1
     current_fake_mask_depth_level = initial_fake_mask_depth_level
     current_fake_mask_iterations_per_depth = iterations_per_depth
     fake_mask_retry_attempt = 0
     max_fake_mask_retry_attempts = 3
-    
+
     while retry_count < max_retries and len(fake_masks) < max_fake:
-        
+
         anatomy_operations = {
             'fake_mask': operation == 'expansion'
         }
-    
-        # depth_level을 동적으로 설정
+
+        # Set depth_level dynamically
         if fake_mask_retry_attempt > 0:
             current_fake_mask_depth_level += 1
             log_print(f"    [Fake Mask] Retry {fake_mask_retry_attempt}: Increasing depth_level to {current_fake_mask_depth_level}")
-        
+
         anatomy_depth_levels = {
             'fake_mask': current_fake_mask_depth_level
         }
 
-        # 기존 fake mask 생성용 points 수집 (독립적으로 수행)
+        # Collect points for the existing fake mask generation (run independently)
         all_expansion_points, all_contraction_points, all_dilated_masks, all_eroded_masks, anatomy_depth_width_levels, all_dilated_masks_by_depth, all_eroded_masks_by_depth, no_points_collected = collect_deformation_points_for_fake_mask(
             best_mask, prev_exp_points, prev_cont_points, min_point_distance, anatomy_operations, anatomy_depth_levels, chex_rl, chex_ll, current_fake_mask_iterations_per_depth
         )
-  
+
         if no_points_collected:
-            # points가 수집되지 않았으면 depth_level/iterations_per_depth 증가하여 재시도
+            # If no points were collected, retry with increased depth_level/iterations_per_depth
             if fake_mask_retry_attempt < max_fake_mask_retry_attempts:
                 fake_mask_retry_attempt += 1
                 continue
             else:
                 break
-        
-        # 5. Accumulated points 준비 (기존 fake mask 생성용 points만 사용)
+
+        # 5. Prepare accumulated points (use only the points collected for fake mask generation)
         log_print(f"    Preparing accumulated points...")
         
         new_mask_component_info = {
@@ -907,22 +907,22 @@ def generate_fake_masks2(
         for pt in pos_pts:
             x, y = pt
             if best_mask[y, x] == 255:
-                # center point가 아닌 경우만 추가
+                # only add if not the center point
                 new_mask_component_info['accumulated_points'].append(pt)
                 new_mask_component_info['accumulated_labels'].append(1)
-                
+
         current_accumulated_points, current_accumulated_labels = prepare_accumulated_points(
             new_mask_component_info, all_expansion_points, all_contraction_points
         )
-        
-        # 6. Mask input 생성 및 조정
+
+        # 6. Create and adjust mask input
         log_print(f"    Creating mask input...")
         mask_input, combined_cxas_mask = create_mask_input(
-            new_mask_component_info, best_mask, all_expansion_points, 
+            new_mask_component_info, best_mask, all_expansion_points,
             all_contraction_points, chex_rl, chex_ll, fake=True
         )
-        
-        # 7. 예측 및 후처리
+
+        # 7. Predict and postprocess
         log_print(f"    Predicting and postprocessing mask...")
         mask, is_valid, logits = predict_and_postprocess_mask(
             model, processor, inference_state, current_accumulated_points,
@@ -936,7 +936,7 @@ def generate_fake_masks2(
             
             mask_pil = Image.fromarray(mask_uint8)
             mask_pil.save(os.path.join(output_path, f"{org_mask_path}_fake_{operation}_{len(fake_masks)+1}.png"))
-            # 시각화를 위한 필수 인자가 모두 있을 때만 호출
+            # Only call when all required visualization arguments are provided
             if config is not None and dicom_id is not None and image is not None:
                 save_path = os.path.join(
                     output_path,
@@ -972,26 +972,26 @@ def generate_fake_masks2(
                         suboptimal_component_id=suboptimal_component_id,
                     )
             
-            # 이번에 생성된 fake 포인트들을 이후 생성 시에도 피하도록 누적
+            # Accumulate the fake points generated this round so future rounds avoid them
             if 'fake_mask' in all_expansion_points:
                 prev_exp_points.setdefault('fake_mask', [])
                 prev_exp_points['fake_mask'].extend(all_expansion_points['fake_mask'])
             if 'fake_mask' in all_contraction_points:
                 prev_cont_points.setdefault('fake_mask', [])
                 prev_cont_points['fake_mask'].extend(all_contraction_points['fake_mask'])
-            
-            # 성공했으면 retry 카운터 리셋
+
+            # On success, reset the retry counter
             retry_count = 0
-            fake_mask_retry_attempt = 0  # fake_mask 재시도 카운터도 리셋
-            current_fake_mask_depth_level = initial_fake_mask_depth_level  # depth_level도 초기화
-            current_fake_mask_iterations_per_depth = iterations_per_depth  # iterations_per_depth도 초기화
+            fake_mask_retry_attempt = 0  # also reset the fake_mask retry counter
+            current_fake_mask_depth_level = initial_fake_mask_depth_level  # also reset depth_level
+            current_fake_mask_iterations_per_depth = iterations_per_depth  # also reset iterations_per_depth
         else:
             retry_count += 1
-            # 실패했을 때도 fake_mask 재시도 시도
+            # On failure, also try the fake_mask retry path
             if fake_mask_retry_attempt < max_fake_mask_retry_attempts:
                 fake_mask_retry_attempt += 1
             else:
-                fake_mask_retry_attempt = 0  # 최대 재시도 횟수 도달 시 리셋
+                fake_mask_retry_attempt = 0  # reset when max retries reached
                 current_fake_mask_depth_level = initial_fake_mask_depth_level
                 current_fake_mask_iterations_per_depth = iterations_per_depth
     

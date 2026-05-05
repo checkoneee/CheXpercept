@@ -18,21 +18,21 @@ from google.cloud import storage
 import re
 from vertexai.preview import tokenization
 
-# 1. 가장 안쪽: 특정 시퀀스(리포트)에서의 발견 내용
+# 1. Innermost: findings within a specific sequence (report)
 class SequenceFinding(BaseModel):
     sequence_id: str = Field(..., description="The identifier of the report, e.g., 'Sequence 1'")
     text: str = Field(..., description="The extracted text describing the disease in this report")
 
-# 2. 중간: 하나의 질병과 그에 대한 시퀀스별 발견 내용들의 묶음
+# 2. Middle: a single disease bundled with its findings across sequences
 class DiseaseEntry(BaseModel):
     disease_name: str = Field(..., description="The name of the disease or finding")
     findings: List[SequenceFinding]
 
-# 3. 가장 바깥쪽: 전체 결과 (질병들의 리스트)
+# 3. Outermost: full result (list of diseases)
 class ExtractionResult(BaseModel):
     diseases: List[DiseaseEntry]
 
-# Attribute extraction을 위한 모델
+# Model for attribute extraction
 class AttributeExtractionResult(BaseModel):
     presence: Optional[Literal["present", "absent"]] = Field(None, description="Strictly output either 'present' or 'absent'. Use 'absent' if the sentence explicitly states the entity is not there.")
     certainty: Optional[Literal["certain", "uncertain"]] = Field(None, description="Strictly output either 'certain' or 'uncertain'. Use 'uncertain' if the sentence is not clear about the presence of the entity.")
@@ -132,30 +132,30 @@ class RadiologyOutput(BaseModel):
 
 '''
 def get_local_llm(model):
-    
+
     if model == "medgemma":
         model_name = "google/medgemma-27b-text-it"
         llm = LLM(model=model_name, # mistralai/Mistral-Small-24B-Instruct-2501
-              tensor_parallel_size=4,  # attention head 수가 GPU 개수로 나누어져야 함, attention head 수 현재 32
+              tensor_parallel_size=4,  # number of attention heads must be divisible by the number of GPUs; currently 32 attention heads
               gpu_memory_utilization=0.85,
               )
     elif model == "mistral":
         model_name = "mistralai/Mistral-Small-3.2-24B-Instruct-2506"
         llm = LLM(model=model_name, # mistralai/Mistral-Small-24B-Instruct-2501
-              tensor_parallel_size=4,  # attention head 수가 GPU 개수로 나누어져야 함, attention head 수 현재 32
+              tensor_parallel_size=4,  # number of attention heads must be divisible by the number of GPUs; currently 32 attention heads
               )
     else:
         raise ValueError(f"Invalid model: {model}")
-    
+
     return llm
 '''
 
 
 def save_llm_outputs(outputs, messages_json, save_path='results.jsonl'):
     """
-    vLLM outputs을 JSONL 파일로 저장
-    각 결과에 messages_json의 key와 마지막 user query도 함께 저장
-    Guided Decoding 사용 시 JSON 파싱도 수행
+    Save vLLM outputs to a JSONL file.
+    Each result is stored together with its key from messages_json and the last user query.
+    When guided decoding is used, JSON parsing is also performed.
     """
     # messages_json: dict, keys are e.g. "33_indication", values are list of messages
     # outputs: list, same order as list(messages_json.values())
@@ -163,14 +163,14 @@ def save_llm_outputs(outputs, messages_json, save_path='results.jsonl'):
     results = []
     for i, output in enumerate(outputs):
         try:
-            # 1. 기본 텍스트 추출
+            # 1. Extract the base text
             response_text = output.outputs[0].text
 
-            # 2. messages_json에서 key와 마지막 user query 추출
+            # 2. Extract the key and the last user query from messages_json
             if i < len(message_keys):
                 key = message_keys[i]
                 messages = messages_json[key]
-                # 마지막 user 메시지 content 추출
+                # Extract the content of the last user message
                 user_query = None
                 for msg in reversed(messages):
                     if msg.get("role") == "user":
@@ -180,7 +180,7 @@ def save_llm_outputs(outputs, messages_json, save_path='results.jsonl'):
                 key = None
                 user_query = None
 
-            # 3. JSON으로 파싱 시도 (Guided Decoding 사용 시)
+            # 3. Try to parse as JSON (used when guided decoding is enabled)
             try:
                 parsed_json = json.loads(response_text)
                 result = {
@@ -202,14 +202,14 @@ def save_llm_outputs(outputs, messages_json, save_path='results.jsonl'):
                     "parsing_error": str(e)
                 }
 
-            # 4. 추가 메타데이터 포함
+            # 4. Include extra metadata
             if hasattr(output, 'request_id'):
                 result["request_id"] = output.request_id
 
             results.append(result)
 
         except Exception as e:
-            # 에러 발생 시에도 기록
+            # Record errors as well
             error_result = {
                 "index": i,
                 "error": str(e),
@@ -217,7 +217,7 @@ def save_llm_outputs(outputs, messages_json, save_path='results.jsonl'):
             }
             results.append(error_result)
 
-    # 하나의 JSON 파일로 저장 (pretty print)
+    # Save as a single JSON file (pretty print)
     with open(save_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
@@ -246,10 +246,10 @@ def read_batch_file(config, batch_file_path, fail_case=None):
     return batch_file
 
 def estimate_token_usage(deployment_name, conversation, gt_output=None, expected_completion_length=10000):
-    # GPT-4의 기본 토큰 인코더 사용
+    # Use GPT-4's default token encoder
 
     enc = tiktoken.encoding_for_model("gpt-5")
-    # 입력(prompt) 토큰 개수 계산
+    # Compute the number of prompt tokens
     prompt_text = " ".join([msg["content"] for msg in conversation])
     prompt_tokens = len(enc.encode(prompt_text))
 
@@ -914,16 +914,16 @@ def transform_messages_to_contents_for_gemini(messages):
     return contents, system_prompt
 
 def run_llm_chat(config, batch_file_path, client, deployment_name, step='structuring', fail_case=None):
-    
+
     batch_file = read_batch_file(config, batch_file_path, fail_case)
-    
-    # 폴더 구조 설정
+
+    # Set up the folder structure
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
     base_dir = os.path.join(config[f'llm_{step}']['output_path'], 'lunguage_score' if config['mode']['lunguage_score'] == True else 'lesionbench')
     processed_response_dir = os.path.join(base_dir, 'processed_response')
     os.makedirs(processed_response_dir, exist_ok=True)
-    
-    # processed 파일 경로
+
+    # processed file path
     local_save_path = os.path.join(processed_response_dir, f"{config[f'llm_{step}']['deployment_name']}_outputs_{timestamp}.json")
     print(f"Processed results will be saved to: {local_save_path}")
 
@@ -946,7 +946,7 @@ def run_llm_chat(config, batch_file_path, client, deployment_name, step='structu
                     model=deployment_name,
                     contents=contents,
                     config= types.GenerateContentConfig(
-                        system_instruction = system_prompt,  # system prompt는 여기에
+                        system_instruction = system_prompt,  # system prompt goes here
                         response_mime_type = 'application/json',
                         response_schema = StructuredOutput if step == 'structuring' else RadiologyOutput,
                     )
@@ -972,7 +972,7 @@ def run_llm_chat(config, batch_file_path, client, deployment_name, step='structu
                         'error': 'Failed to parse JSON response'
                     }
             else:
-                response = client.chat.completions.parse( # 여기서 structured format으로 만들어야 한다.
+                response = client.chat.completions.parse( # produce the structured format here
                     messages=messages,
                     max_completion_tokens=32768, # 32768
                     model=deployment_name,
@@ -1008,10 +1008,10 @@ def run_llm_chat(config, batch_file_path, client, deployment_name, step='structu
             
         results[custom_id] = result_data
     
-    # JSONL 형식으로 저장 (한 줄에 하나의 결과) - run_llm_batch와 동일한 구조
+    # Save in JSONL format (one result per line); same structure as run_llm_batch
     with open(local_save_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
-    
+
     print(f"Results saved to {local_save_path}")
     print(f"Total results: {len(results)}")
     print(f"Successful: {sum(1 for r in results.values() if r.get('success', False))}")
@@ -1020,33 +1020,33 @@ def run_llm_chat(config, batch_file_path, client, deployment_name, step='structu
 
 def resolve_refs(schema, defs=None):
     """
-    Pydantic이 생성한 JSON Schema의 $ref를 재귀적으로 실제 정의로 치환(Dereferencing)합니다.
-    Gemini Batch API는 $ref/$defs 구조를 지원하지 않을 수 있습니다.
+    Recursively dereference $ref entries in the JSON Schema produced by Pydantic.
+    The Gemini Batch API may not support $ref/$defs structures.
     """
     if defs is None:
         defs = schema.get('$defs', {}) or schema.get('definitions', {})
 
     if isinstance(schema, dict):
-        # $ref 키가 있으면 해당 정의 내용을 가져와서 재귀적으로 해결
+        # If a $ref key is present, fetch its definition and resolve recursively
         if '$ref' in schema:
             ref_key = schema['$ref'].split('/')[-1]
             if ref_key in defs:
                 return resolve_refs(defs[ref_key], defs)
-        
-        # 일반 dict인 경우 모든 value에 대해 재귀 호출
+
+        # For regular dicts, recurse on every value
         return {k: resolve_refs(v, defs) for k, v in schema.items() if k != '$defs' and k != 'definitions'}
-    
+
     elif isinstance(schema, list):
-        # list인 경우 각 항목에 대해 재귀 호출
+        # For lists, recurse on each item
         return [resolve_refs(item, defs) for item in schema]
-    
+
     return schema
 
 def transform_batch_file_to_contents_for_gemini(config, batch_file_path, deployment_name, step='structuring', fail_case=None):
 
     batch_file = read_batch_file(config, batch_file_path, fail_case)
 
-    # request 폴더에 저장
+    # Save under the request folder
     base_dir = os.path.join(config[f'llm_{step}']['output_path'], 'lunguage_score' if config['mode']['lunguage_score'] == True else 'lesionbench')
     request_dir = os.path.join(base_dir, 'request')
     os.makedirs(request_dir, exist_ok=True)
@@ -1103,7 +1103,7 @@ def process_batch_file_for_azure(batch_file_path, client):
             status = file_response.status
             print(f"{datetime.datetime.now()} File Id: {file_id}, Status: {status}")
     except KeyboardInterrupt:
-        print("\n사용자가 중단 요청을 보냈습니다. 서버의 Batch File을 삭제합니다...")
+        print("\nReceived an interrupt request from the user. Deleting the Batch File on the server...")
         client.files.delete(batch_file.id)
         print(f"Batch File deleted: {batch_file.id}")
         return None
@@ -1144,13 +1144,13 @@ def process_batch_file_for_azure(batch_file_path, client):
             print(formatted_json)
             
     except KeyboardInterrupt:
-        print("\n사용자가 중단 요청을 보냈습니다. 서버의 Batch 작업을 취소합니다...")
-        client.batches.cancel(batch_id) # 서버에 취소 명령 전송
-        print(f"Batch {batch_id} 취소 요청 완료.")
+        print("\nReceived an interrupt request from the user. Cancelling the Batch job on the server...")
+        client.batches.cancel(batch_id) # send the cancel command to the server
+        print(f"Cancellation requested for batch {batch_id}.")
         print(client.batches.list())
     except Exception as e:
-        client.batches.cancel(batch_id) # 서버에 취소 명령 전송
-        print(f"Batch {batch_id} 취소 요청 완료.")
+        client.batches.cancel(batch_id) # send the cancel command to the server
+        print(f"Cancellation requested for batch {batch_id}.")
         print(client.batches.list())
         
     return batch_response
@@ -1158,21 +1158,21 @@ def process_batch_file_for_azure(batch_file_path, client):
 
 
 def upload_to_gcs(local_file_path, bucket_name, destination_blob_name):
-    """로컬 파일을 GCS 버킷에 업로드하고 gs:// 경로를 반환합니다."""
-    storage_client = storage.Client() # 인증은 환경변수(GOOGLE_APPLICATION_CREDENTIALS) 따름
+    """Upload a local file to a GCS bucket and return its gs:// path."""
+    storage_client = storage.Client() # authentication uses the GOOGLE_APPLICATION_CREDENTIALS env var
     bucket = storage_client.bucket(bucket_name)
     blob = bucket.blob(destination_blob_name)
-    
+
     blob.upload_from_filename(local_file_path)
-    
+
     gcs_uri = f"gs://{bucket_name}/{destination_blob_name}"
-    print(f"파일 업로드 완료: {gcs_uri}")
+    print(f"File upload complete: {gcs_uri}")
     return gcs_uri
 
 
 def download_from_gcs(gcs_uri, local_file_name):
-    """gs:// URI에서 버킷과 파일명을 파싱하여 로컬로 다운로드합니다."""
-    # gs://bucket_name/path/to/file 형식을 파싱
+    """Parse a gs:// URI for bucket and filename, then download the object locally."""
+    # Parse the gs://bucket_name/path/to/file form
     match = re.match(r'gs://([^/]+)/(.+)', gcs_uri)
     if not match:
         raise ValueError(f"Invalid GCS URI: {gcs_uri}")
@@ -1188,38 +1188,38 @@ def download_from_gcs(gcs_uri, local_file_name):
     blob.download_to_filename(local_file_name)
 
 def check_batch_job_status(client):
-    # 전체 배치 작업 목록 가져오기
-    # page_size: 한 번에 가져올 개수 (기본값보다 넉넉하게 설정 추천)
+    # Fetch the full list of batch jobs
+    # page_size: number of items per page (recommend setting higher than the default)
     batch_jobs = client.batches.list(config={"page_size": 100})
 
     print(f"{'Job ID (Name)':<60} | {'Status':<15} | {'Created Time'}")
     print("-" * 100)
 
     for job in batch_jobs:
-        # job.name은 긴 경로(projects/.../jobs/...)로 나옵니다.
-        # job.state: JOB_STATE_RUNNING, SUCCEEDED, FAILED 등
+        # job.name appears as a long path (projects/.../jobs/...).
+        # job.state: JOB_STATE_RUNNING, SUCCEEDED, FAILED, etc.
         print(f"{job.name:<60} | {job.state:<15} | {job.create_time}")
 
 
 def retrieve_and_save_from_gcs(gcs_uri, local_save_path):
     """Retrieve results from Cloud Storage and save as a local .jsonl file."""
     try:
-        # GCS 파일시스템 연결 (gcsfs 라이브러리 필요)
+        # Connect to the GCS filesystem (requires the gcsfs library)
         fs = fsspec.filesystem("gcs")
-        
-        # 1. glob을 사용하여 predictions.jsonl 파일 찾기
-        # Batch API 결과는 보통 '지정경로/job-id_폴더/predictions.jsonl' 형태입니다.
+
+        # 1. Find the predictions.jsonl file via glob.
+        # Batch API results usually follow '<base path>/job-id_folder/predictions.jsonl'.
         search_pattern = f"{gcs_uri.rstrip('/')}/*/predictions.jsonl"
         file_paths = fs.glob(search_pattern)
-        
+
         if not file_paths:
             raise FileNotFoundError(f"No prediction .jsonl files found in directory: {gcs_uri}")
 
-        # 여러 개가 잡힐 경우 첫 번째 파일을 대상으로 함
+        # If multiple matches are returned, use the first
         target_file = file_paths[0]
         print(f"📄 Found result file on GCS: {target_file}")
 
-        # 2. 로컬로 파일 다운로드 (fs.get 사용)
+        # 2. Download the file locally (using fs.get)
         print(f"⬇️ Downloading to {local_save_path}...")
         os.makedirs(os.path.dirname(local_save_path), exist_ok=True)
         fs.get(target_file, local_save_path)
@@ -1235,18 +1235,18 @@ def process_batch_file_for_gemini(config, batch_file_path, client, deployment_na
     batch_file_path = transform_batch_file_to_contents_for_gemini(config, batch_file_path, deployment_name, step, fail_case)
 
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    output_gcs_path = f"gs://lesionbench/results/{timestamp}" 
-    
-    # 폴더 구조 설정
+    output_gcs_path = f"gs://lesionbench/results/{timestamp}"
+
+    # Set up the folder structure
     base_dir = os.path.join(config[f'llm_{step}']['output_path'], 'lunguage_score' if config['mode']['lunguage_score'] == True else 'lesionbench')
     raw_response_dir = os.path.join(base_dir, 'raw_response')
     processed_response_dir = os.path.join(base_dir, 'processed_response')
     os.makedirs(raw_response_dir, exist_ok=True)
     os.makedirs(processed_response_dir, exist_ok=True)
-    
-    # raw 파일 경로
+
+    # raw file path
     raw_save_path = os.path.join(raw_response_dir, f"{config[f'llm_{step}']['deployment_name']}_batch_outputs_{timestamp}.jsonl")
-    # processed 파일 경로
+    # processed file path
     local_save_path = os.path.join(processed_response_dir, f"{config[f'llm_{step}']['deployment_name']}_batch_outputs_{timestamp}.json")
     print(f"Raw results will be saved to: {raw_save_path}")
     print(f"Processed results will be saved to: {local_save_path}")
@@ -1256,7 +1256,7 @@ def process_batch_file_for_gemini(config, batch_file_path, client, deployment_na
     
     check_batch_job_status(client)
 
-    # 3. Batch Job 생성 (dest 지정)
+    # 3. Create the batch job (specify dest)
     file_batch_job = client.batches.create(
         model=deployment_name,
         src=input_gcs_uri,
@@ -1282,27 +1282,27 @@ def process_batch_file_for_gemini(config, batch_file_path, client, deployment_na
 
         print(f"Batch job {job_name} completed successfully")
 
-        # --- [수정된 부분] 결과 다운로드 로직 ---
-        # 1순위: GCS URI 확인 (입력이 GCS였으므로 여기가 실행될 확률 높음)
+        # --- [updated section] result download logic ---
+        # 1st priority: check the GCS URI (likely path since the input came from GCS)
         if batch_job.dest and hasattr(batch_job.dest, 'gcs_uri') and batch_job.dest.gcs_uri:
             print(f"Results located in GCS: {batch_job.dest.gcs_uri}")
-            # raw 결과는 raw_response 폴더에 저장
+            # Save the raw results under the raw_response folder
             retrieve_and_save_from_gcs(batch_job.dest.gcs_uri, raw_save_path)
             print(f"Raw results saved to: {raw_save_path}")
 
     except KeyboardInterrupt:
-        print("\n사용자가 중단 요청을 보냈습니다. 서버의 Batch 작업을 취소합니다...")
+        print("\nReceived an interrupt request from the user. Cancelling the Batch job on the server...")
         client.batches.cancel(name=job_name)
-        print(f"Batch {job_name} 취소 요청 완료.")
+        print(f"Cancellation requested for batch {job_name}.")
         time.sleep(10)
         check_batch_job_status(client)
     except Exception as e:
         client.batches.cancel(name=job_name)
-        print(f"Batch {job_name} 취소 요청 완료.")
+        print(f"Cancellation requested for batch {job_name}.")
         time.sleep(10)
         check_batch_job_status(client)
 
-    # JSONL 파일을 줄 단위로 읽어서 결과 수집 (raw_save_path는 이미 위에서 정의됨)
+    # Collect results by reading the JSONL file line by line (raw_save_path was defined above)
     results = {}
     with open(raw_save_path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -1313,14 +1313,14 @@ def process_batch_file_for_gemini(config, batch_file_path, client, deployment_na
             try:
                 batch_response = json.loads(line)
                 
-                # custom_id 추출 (key에서 request_ 접두사 제거)
+                # Extract custom_id (strip the request_ prefix from key)
                 custom_id = None
                 if 'key' in batch_response:
                     key = batch_response['key']
                     if key.startswith('request_'):
                         custom_id = key.replace('request_', '')
-                
-                # response에서 결과 추출
+
+                # Extract the result from response
                 if 'response' in batch_response and 'candidates' in batch_response['response']:
                     if batch_response['response']['candidates']:
                         candidate = batch_response['response']['candidates'][0]
@@ -1392,7 +1392,7 @@ def process_batch_file_for_gemini(config, batch_file_path, client, deployment_na
                 }
                 results[custom_id] = result_data
     
-    # JSONL 형식으로 저장 (한 줄에 하나의 결과) - Claude 코드와 동일한 형식
+    # Save in JSONL format (one result per line); same format as the Claude code path
     with open(local_save_path, 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
     
@@ -1410,15 +1410,15 @@ def process_batch_file_for_claude(config, batch_file_path, client, deployment_na
 
     requests = transform_batch_file_to_contents_for_claude(batch_file, deployment_name, step)
 
-    # 출력 경로 미리 지정 (타임스탬프 등을 붙여 구분)
+    # Pre-define the output path (uses a timestamp for distinction)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
     base_dir = os.path.join(config[f'llm_{step}']['output_path'], 'lunguage_score' if config['mode']['lunguage_score'] == True else 'lesionbench')
-    
-    # 폴더 구조 설정
+
+    # Set up the folder structure
     processed_response_dir = os.path.join(base_dir, 'processed_response')
     os.makedirs(processed_response_dir, exist_ok=True)
-    
-    # processed response 경로
+
+    # processed response path
     local_save_path = os.path.join(processed_response_dir, f"{config[f'llm_{step}']['deployment_name']}_batch_outputs_{timestamp}.json")
     print(f"Processed results will be saved to: {local_save_path}")
 
@@ -1441,24 +1441,24 @@ def process_batch_file_for_claude(config, batch_file_path, client, deployment_na
             time.sleep(10)
 
         
-        # 결과 수집 및 저장
+        # Collect and save results
         results = {}
-        
+
         for result in client.messages.batches.results(batch_id):
 
             try:
-                # 성공한 결과만 처리
+                # Process only successful results
                 if hasattr(result, 'result') and hasattr(result.result, 'message'):
                     message = result.result.message
-                    
-                    # ToolUseBlock에서 결과 추출
+
+                    # Extract the result from ToolUseBlock
                     tool_result = None
                     if hasattr(message, 'content') and message.content:
                         for content_block in message.content:
                             if hasattr(content_block, 'type') and content_block.type == 'tool_use':
                                 if hasattr(content_block, 'input'):
                                     input_data = content_block.input
-                                    # input에서 results 추출 (dict 또는 dict-like 객체)
+                                    # Extract results from input (dict or dict-like)
                                     tool_result = input_data
                                     '''
                                     try:
@@ -1473,7 +1473,7 @@ def process_batch_file_for_claude(config, batch_file_path, client, deployment_na
                                     
                                     
                                     '''
-                    # 결과 저장
+                    # Save the result
                     result_data = {
                         'custom_id': result.custom_id,
                         'success': True,
@@ -1488,7 +1488,7 @@ def process_batch_file_for_claude(config, batch_file_path, client, deployment_na
                     }
                     results[result.custom_id] = result_data
                 else:
-                    # 실패한 결과 처리
+                    # Handle failed results
                     result_data = {
                         'custom_id': result.custom_id if hasattr(result, 'custom_id') else None,
                         'success': False,
@@ -1496,15 +1496,15 @@ def process_batch_file_for_claude(config, batch_file_path, client, deployment_na
                     }
                     results[result.custom_id] = result_data
             except Exception as e:
-                # 파싱 에러 처리
+                # Handle parsing errors
                 result_data = {
                     'custom_id': result.custom_id if hasattr(result, 'custom_id') else None,
                     'success': False,
                     'error': f"Error parsing result: {str(e)}"
                 }
                 results[result.custom_id] = result_data
-        
-        # JSONL 형식으로 저장 (한 줄에 하나의 결과) - processed response
+
+        # Save in JSONL format (one result per line) for the processed response
         with open(local_save_path, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=4)
         
@@ -1577,18 +1577,18 @@ def esimate_inference_cost(config, batch_file_path, deployment_name, fail_case=N
 
     batch_file = read_batch_file(config, batch_file_path, fail_case)
 
-    # 각 모델별 총 비용을 누적해서 저장할 딕셔너리
+    # Dict accumulating the total cost per model
     total_costs = {}
     for file in batch_file:
         messages = file['body']['messages'] if 'body' in file else file['messages']
         prompt_tokens, completion_tokens = estimate_token_usage(deployment_name, messages)
         cost = estimate_llm_cost(deployment_name, prompt_tokens, completion_tokens)
-        
-        # 이번 요청의 비용을 모델별로 누적
+
+        # Accumulate the cost of this request per model
         for model_name, model_cost in cost.items():
             total_costs[model_name] = total_costs.get(model_name, 0) + model_cost
 
-    # 모델별 총 비용 출력
+    # Print the total cost per model
     print(f"Current model: {deployment_name}")
     print("Total cost per model:")
 
