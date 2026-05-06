@@ -10,7 +10,7 @@ Inputs:
     deformation_results.json   - Stage 01 output (positive cases with deformation outcome)
     positive labeling_sheet    - Stage 00 rosalia_pred labeling sheet (key_id -> dicom_id)
     negative labeling_sheet    - Stage 00 negative labeling sheet (key_id -> dicom_id)
-    [optional] positive annotation CSV - if provided, only key_ids with non-empty `good`
+    [optional] positive annotation CSV - if provided, only key_ids with non-empty `optimal`
                                           column are included; otherwise all key_ids in
                                           deformation_results with qa_deformation_success.
     [optional] negative annotation CSV - same convention for negatives; otherwise all
@@ -48,21 +48,21 @@ from chexpercept_export import (
 
 
 def load_annotated_key_ids(csv_path):
-    """Return key_ids whose `good` (or `good?`) column is non-empty.
+    """Return key_ids whose `optimal` (or `optimal?`) column is non-empty.
 
-    Works on both the Stage 00 labeling sheet (`good?` column) and the combined
-    doctor annotation CSV (`good` column) since both share the same convention:
-    a non-empty value means "annotated as good".
+    Works on both the Stage 00 labeling sheet (`optimal?` column) and the combined
+    doctor annotation CSV (`optimal` column) since both share the same convention:
+    a non-empty value means "annotated as optimal".
     """
     with open(csv_path, "r", encoding="utf-8") as f:
         rows = list(csv.DictReader(f))
     if not rows:
         return []
-    good_col = "good" if "good" in rows[0] else "good?"
+    optimal_col = "optimal" if "optimal" in rows[0] else "optimal?"
     return [
         row["key_id"].strip()
         for row in rows
-        if row.get(good_col, "").strip()
+        if row.get(optimal_col, "").strip()
     ]
 
 
@@ -215,7 +215,7 @@ def main(args):
     with open(args.deformation_results_json, "r") as f:
         deformation_results = json.load(f)
 
-    # --- Positive selection: annotated good ∩ Stage 01 deformation success ---
+    # --- Positive selection: annotated optimal ∩ Stage 01 deformation success ---
     deformation_success_keys = {
         k
         for k, v in deformation_results.items()
@@ -226,15 +226,15 @@ def main(args):
     positive_key_ids = [k for k in annotated_positive if k in deformation_success_keys]
     print(
         f"[positive] {len(positive_key_ids)} key_ids "
-        f"(annotated good in {os.path.basename(positive_csv)} ∩ qa_deformation_success)"
+        f"(annotated optimal in {os.path.basename(positive_csv)} ∩ qa_deformation_success)"
     )
 
-    # --- Negative selection: annotated good in negative sheet ---
+    # --- Negative selection: annotated optimal in negative sheet ---
     negative_csv = args.negative_annotation_csv or args.negative_labeling_sheet
     negative_key_ids = load_annotated_key_ids(negative_csv)
     print(
         f"[negative] {len(negative_key_ids)} key_ids "
-        f"(annotated good in {os.path.basename(negative_csv)})"
+        f"(annotated optimal in {os.path.basename(negative_csv)})"
     )
 
     no_deformation_flags = assign_no_deformation_flags(positive_key_ids, config)
@@ -324,7 +324,7 @@ def parse_args():
         ),
         help=(
             "Stage 00 positive labeling sheet. Only rows with a non-empty "
-            "`good` (or `good?`) column are used."
+            "`optimal` (or `optimal?`) column are used."
         ),
     )
     parser.add_argument(
@@ -335,7 +335,7 @@ def parse_args():
         ),
         help=(
             "Stage 00 negative labeling sheet. Only rows with a non-empty "
-            "`good` (or `good?`) column are used."
+            "`optimal` (or `optimal?`) column are used."
         ),
     )
     parser.add_argument(
@@ -344,7 +344,7 @@ def parse_args():
         help=(
             "Optional alternate positive source. If provided, it overrides "
             "--positive-labeling-sheet (e.g., a combined annotation CSV from "
-            "multiple annotators). Same `good` column convention."
+            "multiple annotators). Same `optimal` column convention."
         ),
     )
     parser.add_argument(
@@ -352,7 +352,7 @@ def parse_args():
         default=None,
         help=(
             "Optional alternate negative source. If provided, it overrides "
-            "--negative-labeling-sheet. Same `good` column convention."
+            "--negative-labeling-sheet. Same `optimal` column convention."
         ),
     )
     parser.add_argument(

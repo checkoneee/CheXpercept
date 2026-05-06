@@ -211,7 +211,7 @@ def main(config, num_workers):
         os.makedirs(d, exist_ok=True)
 
     meta = pd.read_csv(meta_csv_path)
-    meta = meta[meta['good?'].notna() & (meta['good?'].astype(str).str.strip() != '')]
+    meta = meta[meta['optimal?'].notna() & (meta['optimal?'].astype(str).str.strip() != '')]
     print(f"Samples to process: {len(meta)} (filtered to annotated rows)")
 
     args_list = [

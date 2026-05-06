@@ -221,7 +221,7 @@ What it does:
 1. Activates `rosalia`, runs Stage 00 (lightweight sub-steps) and Stage 01 (mask deformation, exercises SAM3).
 2. Switches to `chexpercept`, runs Stage 02 (QA generation), Stage 03 (evaluates `medgemma1.5`), Stage 04 (analysis).
 3. Skips two GPU-heavy steps (`01_generate_rosalia_pred.py` and `00_generate_anatomy_mask.py`) and pre-stages their outputs from fixtures.
-4. Auto-fills the `good?` annotation column with `y`. Production runs must use real annotations.
+4. Auto-fills the `optimal?` annotation column with `y`. Production runs must use real annotations.
 
 Total time: ~3–4 minutes.
 
@@ -275,7 +275,7 @@ python src/00_source_data_curation/03_prepare_negative_annotation.py --config cf
 python src/00_source_data_curation/04_distribute_labeling.py
 ```
 
-After annotators mark the `good?` column in the labeling sheets, proceed to Stage 01.
+After annotators mark the `optimal?` column in the labeling sheets, proceed to Stage 01.
 
 ### Stage 01: Mask Deformation
 
@@ -287,7 +287,7 @@ conda activate rosalia
 # 1. Generate anatomy masks for all annotated CXRs
 python src/01_mask_deformation/00_generate_anatomy_mask.py --config cfg/config.yaml
 
-# 2. Deform optimal masks (uses the annotated `good?` rows from Stage 00)
+# 2. Deform optimal masks (uses the annotated `optimal?` rows from Stage 00)
 python src/01_mask_deformation/01_deform_mask.py --config cfg/config.yaml --num-workers 8
 ```
 

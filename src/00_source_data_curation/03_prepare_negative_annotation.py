@@ -62,13 +62,13 @@ def prepare_negative_annotation(config, args):
                 'lesion': lesion,
                 'key_id': key_id,
                 'dicom_id': item['dicom_id'],
-                'good?': '',
+                'optimal?': '',
             })
 
     os.makedirs(output_dir, exist_ok=True)
     sheet_path = os.path.join(output_dir, 'labeling_sheet.csv')
     with open(sheet_path, 'w', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=['lesion', 'key_id', 'dicom_id', 'good?'])
+        writer = csv.DictWriter(f, fieldnames=['lesion', 'key_id', 'dicom_id', 'optimal?'])
         writer.writeheader()
         writer.writerows(all_rows)
 

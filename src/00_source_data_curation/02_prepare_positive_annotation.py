@@ -37,7 +37,7 @@ def merge_results(base_out, total_parts):
     print(f"\nMerged: {len(merged_results)} pair_ids -> {base_out}/results.json")
 
     fieldnames = ['key_id', 'dicom_id', 'target', 'pair_id', 'mapped_location',
-                  'segmentation_source', 'plot_path', 'good?']
+                  'segmentation_source', 'plot_path', 'optimal?']
     with open(os.path.join(base_out, 'labeling_sheet.csv'), 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

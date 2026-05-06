@@ -161,7 +161,7 @@ def run(config, part=None, total_parts=4, max_samples_per_lesion=3000):
             'mapped_location': mapped_location,
             'segmentation_source': segmentation_source,
             'plot_path': plot_path,
-            'good?': '',
+            'optimal?': '',
         })
 
     suffix = f"_part{part}" if part is not None else ""
@@ -169,7 +169,7 @@ def run(config, part=None, total_parts=4, max_samples_per_lesion=3000):
     with open(os.path.join(base_out, f'results{suffix}.json'), 'w') as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
-    sheet_fields = ['key_id', 'dicom_id', 'target', 'pair_id', 'mapped_location', 'segmentation_source', 'good?']
+    sheet_fields = ['key_id', 'dicom_id', 'target', 'pair_id', 'mapped_location', 'segmentation_source', 'optimal?']
     with open(os.path.join(base_out, f'labeling_sheet{suffix}.csv'), 'w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=sheet_fields + ['plot_path'])
         writer.writeheader()

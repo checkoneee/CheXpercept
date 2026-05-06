@@ -1,4 +1,4 @@
-"""Auto-fill the doctor `good?` column with 'y' for sample_test.sh.
+"""Auto-fill the doctor `optimal?` column with 'y' for sample_test.sh.
 
 Production runs require real annotations; this exists only so the
 sample test can run unattended.
@@ -18,9 +18,9 @@ def main():
         print(f"empty: {args.csv_path}")
         return
 
-    good_col = "good?" if "good?" in rows[0] else "good"
+    optimal_col = "optimal?" if "optimal?" in rows[0] else "optimal"
     for row in rows:
-        row[good_col] = args.value
+        row[optimal_col] = args.value
 
     with open(args.csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))

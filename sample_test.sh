@@ -6,7 +6,7 @@
 #   - Stage 00.01  ROSALIA inference (LISA env + 7B GPU model)
 #   - Stage 01.00  CXAS / CheXmask-U anatomy mask generation
 #
-# Doctor annotation `good?` is auto-filled with 'y' so the test runs
+# Doctor annotation `optimal?` is auto-filled with 'y' so the test runs
 # unattended; production runs must use real annotations.
 #
 # Envs:
@@ -82,8 +82,8 @@ stage_00_skip_rosalia() {
 stage_00_merge_positive() {
     banner "Stage 00.02  Merge positive part outputs"
     python src/00_source_data_curation/02_prepare_positive_annotation.py --total-parts 1
-    banner "Auto-fill positive 'good?'"
-    python "$HELPERS/autofill_good.py" \
+    banner "Auto-fill positive 'optimal?'"
+    python "$HELPERS/autofill_optimal.py" \
         src/00_source_data_curation/outputs/rosalia_pred/labeling_sheet.csv
 }
 
@@ -91,8 +91,8 @@ stage_00_negative_annotation() {
     banner "Stage 00.03  Prepare negative annotation"
     python src/00_source_data_curation/03_prepare_negative_annotation.py \
         --config "$CFG" --samples-per-lesion 1
-    banner "Auto-fill negative 'good?'"
-    python "$HELPERS/autofill_good.py" \
+    banner "Auto-fill negative 'optimal?'"
+    python "$HELPERS/autofill_optimal.py" \
         src/00_source_data_curation/outputs/negative/labeling_sheet.csv
 }
 

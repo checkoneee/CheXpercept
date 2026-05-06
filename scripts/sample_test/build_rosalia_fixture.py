@@ -45,7 +45,7 @@ def main():
 
     fields = [
         "key_id", "dicom_id", "target", "pair_id",
-        "mapped_location", "segmentation_source", "good?", "plot_path",
+        "mapped_location", "segmentation_source", "optimal?", "plot_path",
     ]
     with open(os.path.join(args.out_dir, "labeling_sheet_part0.csv"), "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
@@ -57,7 +57,7 @@ def main():
             "pair_id": args.pair_id,
             "mapped_location": args.mapped_location,
             "segmentation_source": "global",
-            "good?": "",
+            "optimal?": "",
             "plot_path": "",
         })
 
