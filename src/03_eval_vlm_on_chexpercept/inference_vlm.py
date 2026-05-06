@@ -96,6 +96,9 @@ def _extract_answer_number(text: str) -> str:
     """
     # Remove reasoning blocks
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    # Strip gemma special "thought" tokens (e.g. "<unused94>thought\n...")
+    # whose digits would otherwise leak into the number-extraction fallback.
+    text = re.sub(r'<unused\d+>', '', text)
     # Unwrap \boxed{N} → N  (models like Qwen/DeepSeek emit this)
     text = re.sub(r'\\boxed\{([\d,\s]+)\}', r'\1', text)
     # Match "Answer: 3", "Answer: 1,3", "Answer: (3)", "Answer: (1,3)"
@@ -104,6 +107,16 @@ def _extract_answer_number(text: str) -> str:
     if matches:
         nums = re.findall(r'\d+', matches[-1])
         return ','.join(nums) if nums else text.strip()
+    # Match gemma "Final Answer: The final answer is $N$" (LaTeX-wrapped) and
+    # similar phrasings ("the final answer is 3", "final answer: 1,3").
+    fa = re.search(
+        r'final answer\b[^$\d]*\$*\s*(\d+(?:\s*,\s*\d+)*)\s*\$*',
+        text, re.IGNORECASE | re.DOTALL,
+    )
+    if fa:
+        nums = re.findall(r'\d+', fa.group(1))
+        if nums:
+            return ','.join(nums)
     # Fallback: whole response is just a bare number(s), e.g. "4" or "4." or "1, 3"
     bare = re.fullmatch(r'[\d,\s.]+', text.strip())
     if bare:

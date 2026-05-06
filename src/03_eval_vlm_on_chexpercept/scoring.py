@@ -32,6 +32,10 @@ def normalize_response(text: str) -> str:
     if not text:
         return str(-1)
     text = text.strip()
+    # Strip thinking-token artifacts whose digits would otherwise leak into
+    # the "any number anywhere" fallback (e.g. gemma's "<unused94>thought").
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    text = re.sub(r"<unused\d+>", "", text)
 
     m = re.search(
         r"answers?\s*(?:is|are)\s*[:\-]?\s*([\d][\d,\s]*)", text, re.IGNORECASE

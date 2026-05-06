@@ -109,12 +109,16 @@ def init_performance_metrics() -> Dict[str, Any]:
     }
 
 
-def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict[str, Any]) -> None:
+def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict[str, Any], key_id: str = "") -> None:
     """
     For a single case (result), compute end-to-end / oracle-passed correctness
     and update the per-qa_path lists.
+    ``key_id`` (e.g. ``cardiomegaly_s5...``) is used to split depth into
+    cardiomegaly vs non-cardiomegaly buckets, since cardiomegaly cases have
+    a smaller maximum depth (no attribute_extraction stage).
     """
     qa_path = result['qa_path']
+    is_cardio = key_id.startswith("cardiomegaly_")
 
     # Correctness flags per stage
     end_to_end_correct = {
@@ -169,8 +173,14 @@ def accumulate_result_for_case(performance_metrics: Dict[str, Any], result: Dict
             performance_metrics[qa_path][qa_type]['list (end-to-end)'].append(end_to_end_correct[qa_type])
             performance_metrics[qa_path][qa_type]['list (oracle-passed)'].append(oracle_passed_correct[qa_type])
 
-    # depth: number of stages correct in a row under end-to-end (only stages actually asked)
+    # depth: number of stages correct in a row under end-to-end (only stages actually asked).
+    # Cardiomegaly cases lack attribute_extraction_qa by construction; clearing the last
+    # asked stage is treated as also clearing the missing stage so the max depth is
+    # uniform across lesions within a path (RR=4, RF=3, LF=1).
     depth = sum(1 for qa_type in qa_type_list if end_to_end_correct[qa_type])
+    if is_cardio and qa_path in ('revision_required', 'revision_free') and qa_type_list:
+        if end_to_end_correct[qa_type_list[-1]]:
+            depth += 1
     performance_metrics[qa_path]['depth']['list'].append(depth)
 
     # ----- Detailed correctness (oracle_passed view, no end-to-end gating) -----
@@ -360,8 +370,8 @@ def analyze_single_model(
         all_items = all_items[:limit]
 
     performance_metrics = init_performance_metrics()
-    for _, result in all_items:
-        accumulate_result_for_case(performance_metrics, result)
+    for key_id, result in all_items:
+        accumulate_result_for_case(performance_metrics, result, key_id)
     finalize_stage_averages(performance_metrics)
 
     summary_rows = build_summary_rows(performance_metrics, model_name)
