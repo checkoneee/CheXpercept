@@ -386,5 +386,5 @@ We evaluate 14 VLMs: 4 proprietary and 10 open-source (5 general-domain, 5 medic
 | Medical | Hulu-Med-32B | `hulu-med` |
 | Proprietary | Gemini-3.1-Pro | via `--provider gemini` |
 | Proprietary | Gemini-3.1-Flash | via `--provider gemini` |
-| Proprietary | GPT-5.4 | via `--provider openai` |
-| Proprietary | GPT-5.4-nano | via `--provider openai` |
+| Proprietary | GPT-5.4 | via `--provider azure` |
+| Proprietary | GPT-5.4-nano | via `--provider azure` |
